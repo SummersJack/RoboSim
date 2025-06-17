@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'; import { ArrowRight, Play, Cpu, Brain, Layers, Star, Users, Award } from 'lucide-react'; import { motion } from 'framer-motion'; import { useNavigate } from '@/hooks/useNavigation';
+
 const Hero = () => {
 const navigate = useNavigate();
 const [armPosition, setArmPosition] = useState(0);
@@ -62,10 +63,10 @@ return () => {
 }, []);
 
 return (
-
+<div className="relative min-h-screen bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 overflow-hidden">
 {/* Subtle Background effects - positioned to not interfere with content */}
-<div className="absolute bottom-1/6 right-1/6 w-64 h-64 bg-secondary-500/6 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2s'}}>
-<div className="absolute top-2/3 left-2/3 w-48 h-48 bg-accent-500/4 rounded-full blur-3xl animate-pulse" style={{animationDelay: '4s'}}>
+<div className="absolute bottom-1/6 right-1/6 w-64 h-64 bg-secondary-500/6 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
+<div className="absolute top-2/3 left-2/3 w-48 h-48 bg-accent-500/4 rounded-full blur-3xl animate-pulse" style={{animationDelay: '4s'}}></div>
 
   {/* Subtle grid pattern */}
   <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.015)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.015)_1px,transparent_1px)] bg-[size:120px_120px] opacity-30"></div>
