@@ -275,13 +275,13 @@ const Hero = () => {
               </div>
 
               {/* Main Headline with improved typography */}
-              <div className="relative mb-8">
+              <div className="relative mb-16">
                 <h1 className="text-4xl md:text-6xl lg:text-7xl xl:text-8xl font-black leading-[1.1] tracking-tight">
-                  <div className="text-white mb-4 drop-shadow-lg">Master Robotics</div>
-                  <div className="bg-gradient-to-r from-blue-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent font-black relative">
+                  <div className="text-white mb-6 md:mb-8 drop-shadow-lg">Master Robotics</div>
+                  <div className="bg-gradient-to-r from-blue-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent font-black relative pb-8">
                     Without Hardware
                     {/* Enhanced animated underline */}
-                    <div className="absolute -bottom-4 left-0 right-0 h-2 bg-gradient-to-r from-blue-400 via-purple-400 to-cyan-400 rounded-full opacity-60">
+                    <div className="absolute -bottom-2 left-0 right-0 h-2 bg-gradient-to-r from-blue-400 via-purple-400 to-cyan-400 rounded-full opacity-60">
                       <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-30 animate-pulse"></div>
                     </div>
                   </div>
