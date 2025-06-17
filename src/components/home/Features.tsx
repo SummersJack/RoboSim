@@ -1,175 +1,85 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { 
-  Notebook as Robot, 
-  Code, 
   Cpu, 
-  Webhook, 
-  MessageSquare, 
-  Share2, 
-  Award, 
-  Layers,
-  Zap,
-  Shield,
+  Code, 
+  Brain, 
+  Zap, 
+  Shield, 
   Target,
-  Gauge
+  Users,
+  Award,
+  BookOpen,
+  Rocket,
+  Globe,
+  Star
 } from 'lucide-react';
 
-type Feature = {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  color: string;
-  benefits: string[];
-};
-
-const features: Feature[] = [
-  {
-    icon: <Robot size={28} />,
-    title: 'Advanced 3D Robot Simulator',
-    description: 'Industry-grade physics simulation with multiple robot types including robotic arms, mobile platforms, and autonomous drones.',
-    color: 'primary',
-    benefits: ['Realistic physics engine', 'Multiple robot types', 'Real-time visualization']
-  },
-  {
-    icon: <Code size={28} />,
-    title: 'Multi-Modal Programming',
-    description: 'Program using natural language, visual block-based coding, or traditional JavaScript/Python code.',
-    color: 'secondary',
-    benefits: ['Natural language AI', 'Visual block editor', 'Traditional coding']
-  },
-  {
-    icon: <Cpu size={28} />,
-    title: 'Real-Time Sensor Integration',
-    description: 'Comprehensive sensor suite including cameras, LiDAR, ultrasonic, and IMU sensors with live data visualization.',
-    color: 'accent',
-    benefits: ['Camera feeds', 'LiDAR mapping', 'Sensor fusion']
-  },
-  {
-    icon: <Webhook size={28} />,
-    title: 'Advanced Path Planning',
-    description: 'Sophisticated collision detection and path planning algorithms for autonomous navigation and manipulation.',
-    color: 'success',
-    benefits: ['Collision avoidance', 'Optimal pathfinding', 'Dynamic obstacles']
-  },
-  {
-    icon: <MessageSquare size={28} />,
-    title: 'AI Programming Assistant',
-    description: 'Intelligent coding companion that explains robot behavior, suggests optimizations, and provides real-time debugging.',
-    color: 'primary',
-    benefits: ['Code explanation', 'Performance tips', 'Error debugging']
-  },
-  {
-    icon: <Share2 size={28} />,
-    title: 'Collaborative Learning',
-    description: 'Share solutions, learn from peers, and participate in robotics challenges with a global community.',
-    color: 'secondary',
-    benefits: ['Solution sharing', 'Peer learning', 'Global community']
-  },
-  {
-    icon: <Award size={28} />,
-    title: 'Gamified Progress System',
-    description: 'Comprehensive achievement system with badges, leaderboards, and skill progression tracking.',
-    color: 'accent',
-    benefits: ['Achievement badges', 'Skill tracking', 'Leaderboards']
-  },
-  {
-    icon: <Layers size={28} />,
-    title: 'Industry-Relevant Scenarios',
-    description: 'Real-world challenges from warehouse automation to surgical robotics and search-and-rescue missions.',
-    color: 'success',
-    benefits: ['Warehouse automation', 'Medical robotics', 'Emergency response']
-  },
-];
-
-const additionalFeatures = [
-  {
-    icon: <Zap size={24} />,
-    title: 'High Performance',
-    description: 'Optimized for smooth 60fps simulation',
-    color: 'warning'
-  },
-  {
-    icon: <Shield size={24} />,
-    title: 'Safe Learning',
-    description: 'No hardware damage or safety risks',
-    color: 'error'
-  },
-  {
-    icon: <Target size={24} />,
-    title: 'Precision Control',
-    description: 'Sub-millimeter accuracy simulation',
-    color: 'primary'
-  },
-  {
-    icon: <Gauge size={24} />,
-    title: 'Real-Time Analytics',
-    description: 'Performance metrics and insights',
-    color: 'secondary'
-  },
-];
-
-const FeatureCard: React.FC<Feature & { index: number }> = ({ 
-  icon, 
-  title, 
-  description, 
-  color, 
-  benefits, 
-  index 
-}) => {
-  return (
-    <motion.div
-      className="group relative h-full"
-      initial={{ opacity: 0, y: 30 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ delay: index * 0.1, duration: 0.6, ease: "easeOut" }}
-    >
-      <div className={`card hover:shadow-glow-lg border-${color}-800/50 hover:border-${color}-600/70 transition-all duration-500 group-hover:-translate-y-2 relative overflow-hidden h-full flex flex-col`}>
-        {/* Background gradient */}
-        <div className={`absolute inset-0 bg-gradient-to-br from-${color}-900/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
-        
-        <div className="relative z-10 flex flex-col h-full">
-          <div className={`bg-${color}-900/80 w-16 h-16 rounded-xl flex items-center justify-center mb-6 text-${color}-400 border border-${color}-700/50 group-hover:scale-110 transition-transform duration-300 flex-shrink-0`}>
-            {icon}
-          </div>
-          
-          <h3 className="text-xl font-bold mb-4 text-white group-hover:text-white transition-colors leading-tight">
-            {title}
-          </h3>
-          
-          <p className="text-dark-300 mb-6 leading-relaxed flex-grow">
-            {description}
-          </p>
-          
-          <ul className="space-y-3 mt-auto">
-            {benefits.map((benefit, i) => (
-              <li key={i} className="flex items-center text-sm text-dark-400">
-                <div className={`w-1.5 h-1.5 rounded-full bg-${color}-400 mr-3 flex-shrink-0`} />
-                <span>{benefit}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        
-        {/* Hover effect border */}
-        <div className={`absolute inset-0 rounded-xl border-2 border-${color}-500/0 group-hover:border-${color}-500/30 transition-all duration-500`} />
-      </div>
-    </motion.div>
-  );
-};
-
 const Features: React.FC = () => {
+  const mainFeatures = [
+    {
+      icon: <Cpu size={32} />,
+      title: 'Advanced 3D Simulation',
+      description: 'Industry-grade physics engine with realistic robot behavior and environmental interactions.',
+      color: 'blue',
+      stats: '6 Robot Types'
+    },
+    {
+      icon: <Brain size={32} />,
+      title: 'AI-Powered Learning',
+      description: 'Intelligent tutoring system that adapts to your learning pace and provides personalized guidance.',
+      color: 'purple',
+      stats: 'Smart Assistance'
+    },
+    {
+      icon: <Code size={32} />,
+      title: 'Multi-Language Support',
+      description: 'Program in Python, JavaScript, or use visual blocks. Natural language programming coming soon.',
+      color: 'emerald',
+      stats: '3 Languages'
+    }
+  ];
+
+  const stats = [
+    { number: '10,000+', label: 'Active Students', icon: <Users size={24} /> },
+    { number: '100+', label: 'Challenges', icon: <Award size={24} /> },
+    { number: '50+', label: 'Universities', icon: <Globe size={24} /> },
+    { number: '4.9★', label: 'Rating', icon: <Star size={24} /> }
+  ];
+
+  const capabilities = [
+    {
+      title: 'Real-time Physics',
+      description: 'Accurate collision detection and realistic movement dynamics',
+      icon: <Zap size={20} />
+    },
+    {
+      title: 'Cloud Sync',
+      description: 'Your progress syncs across all devices automatically',
+      icon: <Shield size={20} />
+    },
+    {
+      title: 'Collaborative Learning',
+      description: 'Share projects and learn from the community',
+      icon: <Users size={20} />
+    },
+    {
+      title: 'Industry Standards',
+      description: 'Learn with tools used by professional roboticists',
+      icon: <Target size={20} />
+    }
+  ];
+
   return (
-    <section className="py-24 md:py-32 bg-gradient-to-b from-dark-800 to-dark-900 relative overflow-hidden">
+    <section className="py-24 bg-slate-950 relative overflow-hidden">
       {/* Background effects */}
       <div className="absolute inset-0">
-        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-primary-500/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 left-1/4 w-80 h-80 bg-secondary-500/5 rounded-full blur-3xl" />
+        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 left-1/4 w-80 h-80 bg-purple-500/5 rounded-full blur-3xl" />
       </div>
       
-      <div className="container mx-auto px-4 relative z-10">
-        {/* Section header */}
+      <div className="container mx-auto px-6 relative z-10">
+        {/* Section Header */}
         <motion.div
           className="text-center max-w-4xl mx-auto mb-20"
           initial={{ opacity: 0, y: 30 }}
@@ -177,92 +87,124 @@ const Features: React.FC = () => {
           viewport={{ once: true }}
           transition={{ duration: 0.8 }}
         >
-          <div className="inline-flex items-center px-4 py-2 rounded-full bg-primary-500/10 border border-primary-500/20 text-primary-400 text-sm font-medium mb-6">
-            <Cpu size={16} className="mr-2" />
-            <span>Comprehensive Learning Platform</span>
+          <div className="inline-flex items-center px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm font-medium mb-6">
+            <Rocket size={16} className="mr-2" />
+            <span>Powerful Features</span>
           </div>
           
-          <h2 className="text-4xl md:text-5xl font-bold mb-8 text-white leading-tight">
-            Everything You Need to Master
+          <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-8 text-white leading-tight">
+            Everything you need to
             <br />
-            <span className="bg-gradient-to-r from-primary-400 to-secondary-400 bg-clip-text text-transparent">
-              Robotics Programming
+            <span className="bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+              master robotics
             </span>
           </h2>
           
-          <p className="text-xl text-dark-300 leading-relaxed">
-            Our comprehensive platform provides all the tools, simulations, and learning resources 
-            necessary to become proficient in robotics without expensive hardware investments.
+          <p className="text-xl text-slate-300 leading-relaxed">
+            Our comprehensive platform provides all the tools and resources 
+            necessary to become proficient in robotics programming.
           </p>
         </motion.div>
         
-        {/* Main features grid - Fixed height grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-16">
-          {features.map((feature, index) => (
-            <FeatureCard key={feature.title} index={index} {...feature} />
+        {/* Main Features Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">
+          {mainFeatures.map((feature, index) => (
+            <motion.div
+              key={feature.title}
+              className="group relative"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: index * 0.1, duration: 0.6 }}
+            >
+              <div className="bg-slate-900/50 backdrop-blur-xl rounded-2xl p-8 border border-slate-800/50 hover:border-slate-700/50 transition-all duration-500 group-hover:-translate-y-2 h-full">
+                {/* Icon */}
+                <div className={`bg-${feature.color}-500/10 w-16 h-16 rounded-xl flex items-center justify-center mb-6 text-${feature.color}-400 border border-${feature.color}-500/20 group-hover:scale-110 transition-transform duration-300`}>
+                  {feature.icon}
+                </div>
+                
+                {/* Stats badge */}
+                <div className={`inline-flex items-center px-3 py-1 rounded-full bg-${feature.color}-500/10 text-${feature.color}-400 text-xs font-medium mb-4 border border-${feature.color}-500/20`}>
+                  {feature.stats}
+                </div>
+                
+                <h3 className="text-xl font-bold mb-4 text-white group-hover:text-white transition-colors">
+                  {feature.title}
+                </h3>
+                
+                <p className="text-slate-400 leading-relaxed group-hover:text-slate-300 transition-colors">
+                  {feature.description}
+                </p>
+              </div>
+            </motion.div>
           ))}
         </div>
         
-        {/* Additional features */}
+        {/* Stats Section */}
         <motion.div
-          className="bg-dark-700/50 rounded-2xl border border-dark-600/50 backdrop-blur-sm p-8 md:p-12"
+          className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-20"
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.8, delay: 0.3 }}
+          transition={{ duration: 0.8 }}
+        >
+          {stats.map((stat, index) => (
+            <motion.div
+              key={stat.label}
+              className="text-center group"
+              initial={{ opacity: 0, scale: 0.9 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ delay: index * 0.1, duration: 0.5 }}
+            >
+              <div className="bg-slate-800/30 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-blue-400 border border-slate-700/50 group-hover:scale-110 transition-transform duration-300">
+                {stat.icon}
+              </div>
+              <div className="text-3xl md:text-4xl font-bold text-white mb-2">
+                {stat.number}
+              </div>
+              <div className="text-slate-400 font-medium">
+                {stat.label}
+              </div>
+            </motion.div>
+          ))}
+        </motion.div>
+        
+        {/* Capabilities Grid */}
+        <motion.div
+          className="bg-slate-900/30 backdrop-blur-xl rounded-3xl border border-slate-800/50 p-8 md:p-12"
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.8 }}
         >
           <div className="text-center mb-12">
             <h3 className="text-2xl md:text-3xl font-bold text-white mb-4">
-              Built for Performance & Reliability
+              Built for Performance & Scale
             </h3>
-            <p className="text-dark-300 text-lg">
-              Enterprise-grade simulation technology trusted by educators and professionals
+            <p className="text-slate-300 text-lg">
+              Enterprise-grade infrastructure trusted by educators worldwide
             </p>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {additionalFeatures.map((feature, index) => (
+            {capabilities.map((capability, index) => (
               <motion.div
-                key={feature.title}
+                key={capability.title}
                 className="text-center group"
                 initial={{ opacity: 0, scale: 0.9 }}
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
                 transition={{ delay: index * 0.1, duration: 0.5 }}
               >
-                <div className={`bg-${feature.color}-900/50 w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-4 text-${feature.color}-400 border border-${feature.color}-700/50 group-hover:scale-110 transition-transform duration-300`}>
-                  {feature.icon}
+                <div className="bg-slate-800/50 w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4 text-blue-400 border border-slate-700/50 group-hover:scale-110 transition-transform duration-300">
+                  {capability.icon}
                 </div>
-                <h4 className="font-semibold text-white mb-2">{feature.title}</h4>
-                <p className="text-sm text-dark-400">{feature.description}</p>
+                <h4 className="font-semibold text-white mb-2">{capability.title}</h4>
+                <p className="text-sm text-slate-400">{capability.description}</p>
               </motion.div>
             ))}
           </div>
-        </motion.div>
-        
-        {/* Stats section */}
-        <motion.div
-          className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-8"
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.8, delay: 0.5 }}
-        >
-          {[
-            { number: '1,000+', label: 'Active Students', color: 'primary' },
-            { number: '25+', label: 'Learning Modules', color: 'secondary' },
-            { number: '6', label: 'Robot Types', color: 'accent' },
-            { number: '99.9%', label: 'Uptime', color: 'success' },
-          ].map((stat, index) => (
-            <div key={stat.label} className="text-center">
-              <div className={`text-3xl md:text-4xl font-bold text-${stat.color}-400 mb-2`}>
-                {stat.number}
-              </div>
-              <div className="text-dark-400 text-sm font-medium">
-                {stat.label}
-              </div>
-            </div>
-          ))}
         </motion.div>
       </div>
     </section>
