@@ -143,8 +143,8 @@ const INITIAL_CHALLENGE_TRACKING: ChallengeTracking = {
 const CHALLENGE_OBJECTIVES = {
   'intro-1': [
     { id: 'obj1', criteriaType: 'theory', criteriaValue: 'movement_basics' },
-    { id: 'obj2', criteriaType: 'distance_forward', criteriaValue: 3 }, // Easier completion
-    { id: 'obj3', criteriaType: 'rotation_angle', criteriaValue: Math.PI/4 } // 45 degrees
+    { id: 'obj2', criteriaType: 'distance_forward', criteriaValue: 5 }, // 5 meters as specified
+    { id: 'obj3', criteriaType: 'rotation_angle', criteriaValue: Math.PI/2 } // 90 degrees
   ],
   'intro-2': [
     { id: 'obj4', criteriaType: 'theory', criteriaValue: 'sensor_basics' },
@@ -230,17 +230,15 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
   simulateMovement: async (direction: string, speed: number, duration: number) => {
     console.log(`🤖 Starting simulated movement: ${direction} at speed ${speed} for ${duration}ms`);
     
+    // Get initial position to calculate actual distance moved
+    const initialState = get();
+    const initialPosition = initialState.robotState?.position || { x: 0, y: 0, z: 0 };
+    
     // Start visual movement using the existing moveRobot method
     get().moveRobot({ 
       direction: direction as any, 
       speed: speed 
     });
-
-    // Calculate expected distance
-    const baseSpeed = 0.001; // meters per millisecond  
-    const expectedDistance = baseSpeed * speed * duration;
-    
-    console.log(`📏 Expected distance: ${expectedDistance.toFixed(3)}m`);
 
     // Wait for the specified duration
     await new Promise(resolve => setTimeout(resolve, duration));
@@ -248,42 +246,54 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
     // Stop the visual movement
     get().stopRobot();
 
-    // Update challenge tracking with the movement
-    const state = get();
-    if (state.robotState) {
-      set((state) => {
-        const newTracking = { ...state.challengeTracking };
-        
-        // Track movement type
-        switch (direction) {
-          case 'forward':
-            newTracking.hasMovedForward = true;
-            newTracking.totalDistanceMoved += expectedDistance;
+    // Get final position to calculate actual distance moved
+    const finalState = get();
+    const finalPosition = finalState.robotState?.position || { x: 0, y: 0, z: 0 };
+    
+    // Calculate actual distance moved
+    const actualDistance = Math.sqrt(
+      Math.pow(finalPosition.x - initialPosition.x, 2) + 
+      Math.pow(finalPosition.z - initialPosition.z, 2)
+    );
+
+    // Update challenge tracking with the actual movement
+    set((state) => {
+      const newTracking = { ...state.challengeTracking };
+      
+      // Track movement type and update specific tracking
+      switch (direction) {
+        case 'forward':
+          newTracking.hasMovedForward = true;
+          newTracking.totalDistanceMoved += actualDistance;
+          // For forward movement, track the Z-axis distance specifically
+          const forwardDistance = finalPosition.z - initialPosition.z;
+          if (forwardDistance > 0) {
             newTracking.maxForwardDistance = Math.max(
               newTracking.maxForwardDistance, 
-              state.robotState!.position.z + expectedDistance
+              finalPosition.z
             );
-            console.log(`📈 Forward distance: ${newTracking.maxForwardDistance.toFixed(3)}m`);
-            break;
-          case 'backward':
-            newTracking.hasMovedBackward = true;
-            newTracking.totalDistanceMoved += expectedDistance;
-            break;
-          case 'left':
-            newTracking.hasMovedLeft = true;
-            newTracking.totalDistanceMoved += expectedDistance;
-            break;
-          case 'right':
-            newTracking.hasMovedRight = true;
-            newTracking.totalDistanceMoved += expectedDistance;
-            break;
-        }
-        
-        console.log(`📊 Total distance moved: ${newTracking.totalDistanceMoved.toFixed(3)}m`);
-        
-        return { challengeTracking: newTracking };
-      });
-    }
+          }
+          console.log(`📈 Forward distance: ${newTracking.maxForwardDistance.toFixed(3)}m (moved ${forwardDistance.toFixed(3)}m this step)`);
+          break;
+        case 'backward':
+          newTracking.hasMovedBackward = true;
+          newTracking.totalDistanceMoved += actualDistance;
+          break;
+        case 'left':
+          newTracking.hasMovedLeft = true;
+          newTracking.totalDistanceMoved += actualDistance;
+          break;
+        case 'right':
+          newTracking.hasMovedRight = true;
+          newTracking.totalDistanceMoved += actualDistance;
+          break;
+      }
+      
+      console.log(`📊 Total distance moved: ${newTracking.totalDistanceMoved.toFixed(3)}m`);
+      console.log(`🎯 Current forward progress: ${newTracking.maxForwardDistance.toFixed(3)}m / 5.0m required`);
+      
+      return { challengeTracking: newTracking };
+    });
 
     // Check objectives after movement
     setTimeout(() => get().checkAndCompleteObjectives(), 200);
@@ -294,6 +304,10 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
   // Enhanced rotation that combines visual rotation with challenge tracking  
   simulateRotation: async (direction: string, angle: number) => {
     console.log(`🔄 Starting simulated rotation: ${direction} by ${angle}°`);
+    
+    // Get initial rotation to calculate actual rotation
+    const initialState = get();
+    const initialRotation = initialState.robotState?.rotation.y || 0;
     
     // Start visual rotation using the existing rotateRobot method
     get().rotateRobot({ 
@@ -312,9 +326,17 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
     // Stop the visual rotation
     get().stopRobot();
 
-    // Update challenge tracking with the rotation
-    const angleRad = (angle * Math.PI) / 180;
+    // Get final rotation to calculate actual rotation
+    const finalState = get();
+    const finalRotation = finalState.robotState?.rotation.y || 0;
     
+    // Calculate actual rotation amount (handle wrap-around)
+    let actualRotation = Math.abs(finalRotation - initialRotation);
+    if (actualRotation > Math.PI) {
+      actualRotation = 2 * Math.PI - actualRotation;
+    }
+
+    // Update challenge tracking with the actual rotation
     set((state) => {
       const newTracking = { ...state.challengeTracking };
       
@@ -326,10 +348,11 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
       }
       
       // Add to total rotation
-      newTracking.totalRotations += angleRad;
-      newTracking.totalRotationAngle += angleRad;
+      newTracking.totalRotations += actualRotation;
+      newTracking.totalRotationAngle += actualRotation;
       
-      console.log(`🧭 Total rotation: ${(newTracking.totalRotationAngle * 180 / Math.PI).toFixed(1)}°`);
+      console.log(`🧭 Total rotation: ${(newTracking.totalRotationAngle * 180 / Math.PI).toFixed(1)}° (moved ${(actualRotation * 180 / Math.PI).toFixed(1)}° this step)`);
+      console.log(`🎯 Current rotation progress: ${(newTracking.totalRotationAngle * 180 / Math.PI).toFixed(1)}° / 90.0° required`);
       
       return { challengeTracking: newTracking };
     });
@@ -952,23 +975,17 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
   },
 
   markTheoryViewed: (theoryId: string) => {
-    const state = get();
-    
-    // Check if theory is already viewed to prevent unnecessary state updates
-    if (state.challengeTracking.viewedTheory.has(theoryId)) {
-      return; // Exit early if already viewed
-    }
-    
     set((state) => {
       const newTracking = { ...state.challengeTracking };
-      newTracking.viewedTheory.add(theoryId);
-      console.log(`📚 Theory viewed: ${theoryId}`);
-      
+      if (!newTracking.viewedTheory.has(theoryId)) {
+        newTracking.viewedTheory.add(theoryId);
+        console.log(`📚 Theory viewed: ${theoryId}`);
+        
+        // Check if this completes a theory-based objective
+        setTimeout(() => get().checkAndCompleteObjectives(), 100);
+      }
       return { challengeTracking: newTracking };
     });
-    
-    // Check if this completes a theory-based objective
-    setTimeout(() => get().checkAndCompleteObjectives(), 100);
   },
 
   getObjectiveStatus: (objectiveId) => {
