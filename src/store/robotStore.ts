@@ -139,6 +139,8 @@ const INITIAL_CHALLENGE_TRACKING: ChallengeTracking = {
   targetPositions: [],
   hasReachedPickupArea: false,
   hasCompletedPath: false,
+  gridPointsVisited: new Set<string>(),
+  patrolWaypoints: 0,
 };
 
 // Define challenge objectives with proper completion criteria
