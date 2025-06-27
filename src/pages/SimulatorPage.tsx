@@ -233,7 +233,7 @@ console.log("Package picked up!");`
 const SimulatorPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<EditorTab>('code');
   const [currentChallenge, setCurrentChallenge] = useState<Challenge | null>(null);
-  const [code, setCode] = useState<string>('');
+  const [code, setCode] = useState<string>('// Welcome to the Robot Simulator!\n// Select a robot from the control panel and start programming\n\nconsole.log("Hello, Robot!");');
   const [showTheoryModal, setShowTheoryModal] = useState(false);
   const [showHintsModal, setShowHintsModal] = useState(false);
   const navigate = useNavigate();
@@ -252,7 +252,7 @@ const SimulatorPage: React.FC = () => {
     robotState
   } = useRobotStore();
 
-  // Load challenge from URL parameter
+  // Load challenge from URL parameter (optional)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const challengeId = params.get('challenge');
@@ -265,11 +265,10 @@ const SimulatorPage: React.FC = () => {
       
       console.log(`🎯 Loaded challenge: ${challenge.title}`);
     } else {
-      // Default to intro-1 if no valid challenge
-      const defaultChallenge = challengeData['intro-1'];
-      setCurrentChallenge(defaultChallenge);
-      setCode(defaultChallenge.startingCode.code);
-      setStoreChallengeId('intro-1');
+      // Standalone simulator mode
+      setCurrentChallenge(null);
+      setStoreChallengeId(null);
+      setCode('// Welcome to the Robot Simulator!\n// Select a robot from the control panel and start programming\n\nconsole.log("Hello, Robot!");');
     }
   }, [setStoreChallengeId]);
 
@@ -279,7 +278,7 @@ const SimulatorPage: React.FC = () => {
       const { objectiveId, challengeId } = event.detail;
       console.log(`✅ Objective completed: ${objectiveId} in ${challengeId}`);
       
-      // Update current challenge objectives
+      // Update current challenge objectives if we're in challenge mode
       if (currentChallenge && challengeId === currentChallenge.id) {
         setCurrentChallenge(prev => prev ? {
           ...prev,
@@ -294,7 +293,6 @@ const SimulatorPage: React.FC = () => {
       const { challengeId } = event.detail;
       console.log(`🏆 Challenge completed: ${challengeId}`);
       
-      // Update current challenge completion status
       if (currentChallenge && challengeId === currentChallenge.id) {
         setCurrentChallenge(prev => prev ? { ...prev, completed: true } : null);
       }
@@ -334,49 +332,106 @@ const SimulatorPage: React.FC = () => {
   const handleCodeRun = async (codeToRun: string) => {
     console.log('🚀 Running code:', codeToRun);
     
-    // Mark theory as viewed for theory-based objectives
-    if (currentChallenge?.id === 'intro-1') {
-      markTheoryViewed('movement_basics');
-    } else if (currentChallenge?.id === 'intro-2') {
-      markTheoryViewed('sensor_basics');
-    } else if (currentChallenge?.id === 'warehouse-1') {
-      markTheoryViewed('path_planning');
+    // Mark theory as viewed for theory-based objectives if in challenge mode
+    if (currentChallenge) {
+      if (currentChallenge.id === 'intro-1') {
+        markTheoryViewed('movement_basics');
+      } else if (currentChallenge.id === 'intro-2') {
+        markTheoryViewed('sensor_basics');
+      } else if (currentChallenge.id === 'warehouse-1') {
+        markTheoryViewed('path_planning');
+      }
     }
     
     try {
-      // Create robot API that integrates with the store
+      // Create robot API that integrates with the store and tracks objectives
       const robot = {
         move: async (params: { direction: string; speed: number; duration: number }) => {
           console.log('🤖 Robot moving:', params);
-          moveRobot({ 
-            direction: params.direction as any, 
-            speed: params.speed 
+          
+          // Use the same pattern as CodeEditor for consistency
+          const normalizedSpeed = Math.max(0.1, Math.min(1.0, params.speed));
+          
+          await stopRobot();
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          if (params.direction === 'forward' || params.direction === 'backward') {
+            moveRobot({ direction: params.direction as any, speed: normalizedSpeed });
+          } else {
+            rotateRobot({ direction: params.direction as any, speed: normalizedSpeed });
+          }
+          
+          // Wait for the specified duration
+          await new Promise(resolve => setTimeout(resolve, params.duration));
+          await stopRobot();
+          
+          // Update challenge tracking after movement
+          const state = useRobotStore.getState();
+          const newTracking = { ...state.challengeTracking };
+          
+          // Calculate distance moved based on speed and duration
+          const distance = (normalizedSpeed * params.duration) / 1000; // rough estimation
+          newTracking.totalDistanceMoved += distance;
+          
+          if (params.direction === 'forward') {
+            newTracking.hasMovedForward = true;
+            newTracking.maxForwardDistance += distance;
+            console.log(`📈 Forward distance updated: ${newTracking.maxForwardDistance.toFixed(3)}m`);
+          } else if (params.direction === 'backward') {
+            newTracking.hasMovedBackward = true;
+            newTracking.maxBackwardDistance += distance;
+          }
+          
+          // Update store with new tracking
+          useRobotStore.setState({
+            challengeTracking: newTracking
           });
           
-          // Simulate movement duration
-          return new Promise(resolve => {
-            setTimeout(() => {
-              stopRobot();
-              resolve(undefined);
-            }, params.duration);
-          });
+          // Check objectives after a short delay
+          setTimeout(() => {
+            state.checkAndCompleteObjectives();
+          }, 100);
         },
         
         rotate: async (params: { direction: string; angle: number }) => {
           console.log('🔄 Robot rotating:', params);
-          rotateRobot({ 
-            direction: params.direction as any, 
-            speed: 0.5 
+          
+          const normalizedSpeed = 0.5;
+          const duration = Math.max(300, params.angle * 10); // Estimate duration based on angle
+          
+          await stopRobot();
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          rotateRobot({ direction: params.direction as any, speed: normalizedSpeed });
+          await new Promise(resolve => setTimeout(resolve, duration));
+          await stopRobot();
+          
+          // Update challenge tracking after rotation
+          const state = useRobotStore.getState();
+          const newTracking = { ...state.challengeTracking };
+          
+          // Convert angle to radians and track
+          const angleInRadians = (params.angle * Math.PI) / 180;
+          newTracking.totalRotations += angleInRadians;
+          newTracking.totalRotationAngle += angleInRadians;
+          
+          if (params.direction === 'left') {
+            newTracking.hasRotatedLeft = true;
+          } else {
+            newTracking.hasRotatedRight = true;
+          }
+          
+          console.log(`🧭 Rotation updated: ${(newTracking.totalRotationAngle * 180 / Math.PI).toFixed(1)}°`);
+          
+          // Update store with new tracking
+          useRobotStore.setState({
+            challengeTracking: newTracking
           });
           
-          // Simulate rotation duration based on angle
-          const duration = (params.angle / 90) * 1000; // 1 second per 90 degrees
-          return new Promise(resolve => {
-            setTimeout(() => {
-              stopRobot();
-              resolve(undefined);
-            }, duration);
-          });
+          // Check objectives after a short delay
+          setTimeout(() => {
+            state.checkAndCompleteObjectives();
+          }, 100);
         },
         
         stop: async () => {
@@ -544,154 +599,152 @@ const SimulatorPage: React.FC = () => {
     );
   };
 
-  if (!currentChallenge) {
-    return (
-      <Layout>
-        <div className="min-h-screen bg-dark-900 flex items-center justify-center">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-white mb-4">Loading Challenge...</h1>
-            <p className="text-dark-400">Please select a challenge from the challenges page.</p>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
-
   return (
     <Layout>
       <div className="min-h-[calc(100vh-var(--header-height)-var(--footer-height))] bg-dark-900">
-        {/* Challenge Header */}
-        <div className="px-6 py-6 bg-dark-800 border-b border-dark-600">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-6">
-                <button 
-                  className="btn bg-dark-700 hover:bg-dark-600 text-white p-2.5 rounded-lg transition-colors"
-                  onClick={() => navigate('/challenges')}
-                >
-                  <ArrowLeft size={20} />
-                </button>
-                <div>
-                  <h1 className="text-2xl font-bold text-white mb-2">{currentChallenge.title}</h1>
-                  <p className="text-dark-300 text-lg">{currentChallenge.description}</p>
-                  <div className="flex items-center mt-2 space-x-4">
-                    <span className="text-sm text-dark-400">
-                      Progress: {progress.completed}/{progress.total} objectives ({progressPercentage}%)
-                    </span>
-                    {currentChallenge.completed && (
-                      <span className="flex items-center text-success-400 text-sm">
-                        <Trophy size={16} className="mr-1" />
-                        Challenge Complete!
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-              
-              {/* Helper buttons */}
-              <div className="hidden lg:flex space-x-3">
-                <button
-                  onClick={handleOpenTheoryModal}
-                  className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded flex items-center text-sm"
-                >
-                  <BookOpen size={14} className="mr-2" />
-                  Theory
-                </button>
-                <button
-                  onClick={() => setShowHintsModal(true)}
-                  className="bg-warning-600 hover:bg-warning-700 text-white px-4 py-2 rounded flex items-center text-sm"
-                >
-                  <Lightbulb size={14} className="mr-2" />
-                  Hints
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Objectives Panel */}
-        <div className="px-6 py-4 bg-dark-850 border-b border-dark-600">
-          <div className="max-w-7xl mx-auto">
-            <div className="bg-dark-700 rounded-lg p-4 border border-dark-600">
-              <h3 className="text-lg font-semibold text-white mb-3 flex items-center">
-                <Target size={18} className="mr-2" />
-                Challenge Objectives
-              </h3>
-              
-              {/* Progress bar */}
-              <div className="mb-4">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm text-dark-400">Overall Progress</span>
-                  <span className="text-sm text-dark-400">{progressPercentage}%</span>
-                </div>
-                <div className="w-full bg-dark-600 rounded-full h-3">
-                  <motion.div
-                    className={`h-3 rounded-full transition-all ${
-                      currentChallenge.completed ? 'bg-success-500' : 'bg-primary-500'
-                    }`}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${progressPercentage}%` }}
-                    transition={{ duration: 0.5 }}
-                  />
-                </div>
-              </div>
-              
-              {/* Objectives list */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {currentChallenge.objectives.map((objective, index) => (
-                  <motion.div
-                    key={objective.id}
-                    className={`p-4 rounded-lg border transition-all ${
-                      objective.completed
-                        ? 'bg-success-900/20 border-success-700'
-                        : 'bg-dark-600 border-dark-500'
-                    }`}
-                    animate={objective.completed ? { backgroundColor: 'rgba(34, 197, 94, 0.1)' } : {}}
-                    transition={{ duration: 0.3 }}
-                  >
-                    <div className="flex items-start">
-                      <div className={`w-6 h-6 rounded-full mr-3 flex items-center justify-center transition-colors mt-0.5 ${
-                        objective.completed 
-                          ? 'bg-success-500 text-white' 
-                          : 'bg-dark-500 text-dark-300'
-                      }`}>
-                        <AnimatePresence>
-                          {objective.completed ? (
-                            <motion.div
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              exit={{ scale: 0 }}
-                            >
-                              <CheckCircle size={14} />
-                            </motion.div>
-                          ) : (
-                            <span className="text-xs font-bold">{index + 1}</span>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                      <div className="flex-1">
-                        <p className={`text-sm font-medium transition-colors ${
-                          objective.completed ? 'text-success-300' : 'text-white'
-                        }`}>
-                          {objective.description}
-                        </p>
-                        {objective.completed && (
-                          <motion.p
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            className="text-success-400 text-xs mt-1 font-medium"
-                          >
-                            ✓ Completed!
-                          </motion.p>
+        {/* Challenge Header - Only show if in challenge mode */}
+        {currentChallenge && (
+          <>
+            <div className="px-6 py-6 bg-dark-800 border-b border-dark-600">
+              <div className="max-w-7xl mx-auto">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-6">
+                    <button 
+                      className="btn bg-dark-700 hover:bg-dark-600 text-white p-2.5 rounded-lg transition-colors"
+                      onClick={() => navigate('/challenges')}
+                    >
+                      <ArrowLeft size={20} />
+                    </button>
+                    <div>
+                      <h1 className="text-2xl font-bold text-white mb-2">{currentChallenge.title}</h1>
+                      <p className="text-dark-300 text-lg">{currentChallenge.description}</p>
+                      <div className="flex items-center mt-2 space-x-4">
+                        <span className="text-sm text-dark-400">
+                          Progress: {progress.completed}/{progress.total} objectives ({progressPercentage}%)
+                        </span>
+                        {currentChallenge.completed && (
+                          <span className="flex items-center text-success-400 text-sm">
+                            <Trophy size={16} className="mr-1" />
+                            Challenge Complete!
+                          </span>
                         )}
                       </div>
                     </div>
-                  </motion.div>
-                ))}
+                  </div>
+                  
+                  <div className="hidden lg:flex space-x-3">
+                    <button
+                      onClick={handleOpenTheoryModal}
+                      className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded flex items-center text-sm"
+                    >
+                      <BookOpen size={14} className="mr-2" />
+                      Theory
+                    </button>
+                    <button
+                      onClick={() => setShowHintsModal(true)}
+                      className="bg-warning-600 hover:bg-warning-700 text-white px-4 py-2 rounded flex items-center text-sm"
+                    >
+                      <Lightbulb size={14} className="mr-2" />
+                      Hints
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
+
+            {/* Objectives Panel - Only show if in challenge mode */}
+            <div className="px-6 py-4 bg-dark-850 border-b border-dark-600">
+              <div className="max-w-7xl mx-auto">
+                <div className="bg-dark-700 rounded-lg p-4 border border-dark-600">
+                  <h3 className="text-lg font-semibold text-white mb-3 flex items-center">
+                    <Target size={18} className="mr-2" />
+                    Challenge Objectives
+                  </h3>
+                  
+                  <div className="mb-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm text-dark-400">Overall Progress</span>
+                      <span className="text-sm text-dark-400">{progressPercentage}%</span>
+                    </div>
+                    <div className="w-full bg-dark-600 rounded-full h-3">
+                      <motion.div
+                        className={`h-3 rounded-full transition-all ${
+                          currentChallenge.completed ? 'bg-success-500' : 'bg-primary-500'
+                        }`}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${progressPercentage}%` }}
+                        transition={{ duration: 0.5 }}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {currentChallenge.objectives.map((objective, index) => (
+                      <motion.div
+                        key={objective.id}
+                        className={`p-4 rounded-lg border transition-all ${
+                          objective.completed
+                            ? 'bg-success-900/20 border-success-700'
+                            : 'bg-dark-600 border-dark-500'
+                        }`}
+                        animate={objective.completed ? { backgroundColor: 'rgba(34, 197, 94, 0.1)' } : {}}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <div className="flex items-start">
+                          <div className={`w-6 h-6 rounded-full mr-3 flex items-center justify-center transition-colors mt-0.5 ${
+                            objective.completed 
+                              ? 'bg-success-500 text-white' 
+                              : 'bg-dark-500 text-dark-300'
+                          }`}>
+                            <AnimatePresence>
+                              {objective.completed ? (
+                                <motion.div
+                                  initial={{ scale: 0 }}
+                                  animate={{ scale: 1 }}
+                                  exit={{ scale: 0 }}
+                                >
+                                  <CheckCircle size={14} />
+                                </motion.div>
+                              ) : (
+                                <span className="text-xs font-bold">{index + 1}</span>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                          <div className="flex-1">
+                            <p className={`text-sm font-medium transition-colors ${
+                              objective.completed ? 'text-success-300' : 'text-white'
+                            }`}>
+                              {objective.description}
+                            </p>
+                            {objective.completed && (
+                              <motion.p
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                className="text-success-400 text-xs mt-1 font-medium"
+                              >
+                                ✓ Completed!
+                              </motion.p>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Standalone Simulator Header - Only show if not in challenge mode */}
+        {!currentChallenge && (
+          <div className="px-6 py-6 bg-dark-800 border-b border-dark-600">
+            <div className="max-w-7xl mx-auto">
+              <h1 className="text-2xl font-bold text-white mb-2">Robot Simulator</h1>
+              <p className="text-dark-300 text-lg">Program and control robots in a virtual environment</p>
+            </div>
           </div>
-        </div>
+        )}
         
         {/* Main Content */}
         <div className="max-w-7xl mx-auto px-6 py-6">
@@ -762,9 +815,13 @@ const SimulatorPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Modals */}
-      <TheoryModal />
-      <HintsModal />
+      {/* Modals - Only show if in challenge mode */}
+      {currentChallenge && (
+        <>
+          <TheoryModal />
+          <HintsModal />
+        </>
+      )}
     </Layout>
   );
 };
