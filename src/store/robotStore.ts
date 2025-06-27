@@ -98,7 +98,7 @@ interface RobotStoreState {
   readSensor: (sensorType: string) => Promise<number>;
   getSensorData: (sensorType: string) => Promise<any>;
   checkChallengeCompletion: (challengeId: string) => void;
-  // New simulator-specific methods
+  // Enhanced simulator methods
   simulateMovement: (direction: string, speed: number, duration: number) => Promise<void>;
   simulateRotation: (direction: string, angle: number) => Promise<void>;
 }
@@ -143,8 +143,8 @@ const INITIAL_CHALLENGE_TRACKING: ChallengeTracking = {
 const CHALLENGE_OBJECTIVES = {
   'intro-1': [
     { id: 'obj1', criteriaType: 'theory', criteriaValue: 'movement_basics' },
-    { id: 'obj2', criteriaType: 'distance_forward', criteriaValue: 4 }, // Reduced for easier completion
-    { id: 'obj3', criteriaType: 'rotation_angle', criteriaValue: Math.PI/3 } // Reduced for easier completion
+    { id: 'obj2', criteriaType: 'distance_forward', criteriaValue: 3 }, // Easier completion
+    { id: 'obj3', criteriaType: 'rotation_angle', criteriaValue: Math.PI/4 } // 45 degrees
   ],
   'intro-2': [
     { id: 'obj4', criteriaType: 'theory', criteriaValue: 'sensor_basics' },
@@ -226,175 +226,125 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
     });
   },
 
-  // Enhanced movement simulation for the simulator
+  // Enhanced movement that combines visual movement with challenge tracking
   simulateMovement: async (direction: string, speed: number, duration: number) => {
-    const state = get();
-    if (!state.robotState) return;
-
-    console.log(`🤖 Simulating movement: ${direction} at ${speed} speed for ${duration}ms`);
-
-    // Update tracking immediately
-    set((state) => {
-      const newTracking = { ...state.challengeTracking };
-      switch (direction) {
-        case 'forward':
-          newTracking.hasMovedForward = true;
-          break;
-        case 'backward':
-          newTracking.hasMovedBackward = true;
-          break;
-        case 'left':
-          newTracking.hasMovedLeft = true;
-          break;
-        case 'right':
-          newTracking.hasMovedRight = true;
-          break;
-      }
-      return { 
-        challengeTracking: newTracking,
-        isMoving: true,
-        robotState: state.robotState ? { ...state.robotState, isMoving: true } : null
-      };
+    console.log(`🤖 Starting simulated movement: ${direction} at speed ${speed} for ${duration}ms`);
+    
+    // Start visual movement using the existing moveRobot method
+    get().moveRobot({ 
+      direction: direction as any, 
+      speed: speed 
     });
 
-    // Calculate movement distance based on speed and duration
-    const baseSpeed = 0.001; // meters per millisecond
-    const distance = baseSpeed * speed * duration;
+    // Calculate expected distance
+    const baseSpeed = 0.001; // meters per millisecond  
+    const expectedDistance = baseSpeed * speed * duration;
     
-    // Update position based on direction
-    const currentState = get();
-    if (currentState.robotState) {
-      const currentPos = currentState.robotState.position;
-      const angle = currentState.robotState.rotation.y;
-      
-      let newPosition = { ...currentPos };
-      
-      switch (direction) {
-        case 'forward':
-          newPosition.x += Math.sin(angle) * distance;
-          newPosition.z += Math.cos(angle) * distance;
-          break;
-        case 'backward':
-          newPosition.x -= Math.sin(angle) * distance;
-          newPosition.z -= Math.cos(angle) * distance;
-          break;
-        case 'left':
-          newPosition.x -= Math.cos(angle) * distance;
-          newPosition.z += Math.sin(angle) * distance;
-          break;
-        case 'right':
-          newPosition.x += Math.cos(angle) * distance;
-          newPosition.z -= Math.sin(angle) * distance;
-          break;
-      }
+    console.log(`📏 Expected distance: ${expectedDistance.toFixed(3)}m`);
 
-      // Update position and tracking
+    // Wait for the specified duration
+    await new Promise(resolve => setTimeout(resolve, duration));
+    
+    // Stop the visual movement
+    get().stopRobot();
+
+    // Update challenge tracking with the movement
+    const state = get();
+    if (state.robotState) {
       set((state) => {
         const newTracking = { ...state.challengeTracking };
-        newTracking.totalDistanceMoved += distance;
         
-        if (direction === 'forward') {
-          newTracking.maxForwardDistance = Math.max(newTracking.maxForwardDistance, newPosition.z);
-        } else if (direction === 'backward') {
-          newTracking.maxBackwardDistance = Math.max(newTracking.maxBackwardDistance, Math.abs(newPosition.z));
+        // Track movement type
+        switch (direction) {
+          case 'forward':
+            newTracking.hasMovedForward = true;
+            newTracking.totalDistanceMoved += expectedDistance;
+            newTracking.maxForwardDistance = Math.max(
+              newTracking.maxForwardDistance, 
+              state.robotState!.position.z + expectedDistance
+            );
+            console.log(`📈 Forward distance: ${newTracking.maxForwardDistance.toFixed(3)}m`);
+            break;
+          case 'backward':
+            newTracking.hasMovedBackward = true;
+            newTracking.totalDistanceMoved += expectedDistance;
+            break;
+          case 'left':
+            newTracking.hasMovedLeft = true;
+            newTracking.totalDistanceMoved += expectedDistance;
+            break;
+          case 'right':
+            newTracking.hasMovedRight = true;
+            newTracking.totalDistanceMoved += expectedDistance;
+            break;
         }
         
-        return {
-          robotState: state.robotState ? {
-            ...state.robotState,
-            position: newPosition,
-          } : null,
-          challengeTracking: newTracking,
-        };
+        console.log(`📊 Total distance moved: ${newTracking.totalDistanceMoved.toFixed(3)}m`);
+        
+        return { challengeTracking: newTracking };
       });
-
-      console.log(`📍 New position: (${newPosition.x.toFixed(2)}, ${newPosition.z.toFixed(2)})`);
-      console.log(`📏 Distance moved: ${distance.toFixed(2)}m, Total: ${(currentState.challengeTracking.totalDistanceMoved + distance).toFixed(2)}m`);
     }
 
-    // Simulate movement duration
-    await new Promise(resolve => setTimeout(resolve, 100)); // Quick simulation
-
-    // Stop movement and check objectives
-    set((state) => ({
-      isMoving: false,
-      robotState: state.robotState ? { ...state.robotState, isMoving: false } : null
-    }));
-
-    get().checkAndCompleteObjectives();
+    // Check objectives after movement
+    setTimeout(() => get().checkAndCompleteObjectives(), 200);
+    
+    console.log(`✅ Movement simulation complete`);
   },
 
-  // Enhanced rotation simulation for the simulator
+  // Enhanced rotation that combines visual rotation with challenge tracking  
   simulateRotation: async (direction: string, angle: number) => {
-    const state = get();
-    if (!state.robotState) return;
+    console.log(`🔄 Starting simulated rotation: ${direction} by ${angle}°`);
+    
+    // Start visual rotation using the existing rotateRobot method
+    get().rotateRobot({ 
+      direction: direction as any, 
+      speed: 0.5 
+    });
 
-    console.log(`🔄 Simulating rotation: ${direction} by ${angle} degrees`);
+    // Calculate rotation duration based on angle (roughly 1 second per 90 degrees)
+    const rotationDuration = (angle / 90) * 1000;
+    
+    console.log(`⏱️ Rotation duration: ${rotationDuration}ms`);
 
-    // Update tracking immediately
+    // Wait for the rotation to complete
+    await new Promise(resolve => setTimeout(resolve, rotationDuration));
+    
+    // Stop the visual rotation
+    get().stopRobot();
+
+    // Update challenge tracking with the rotation
+    const angleRad = (angle * Math.PI) / 180;
+    
     set((state) => {
       const newTracking = { ...state.challengeTracking };
+      
+      // Track rotation type
       if (direction === 'left') {
         newTracking.hasRotatedLeft = true;
       } else {
         newTracking.hasRotatedRight = true;
       }
-      return { 
-        challengeTracking: newTracking,
-        isMoving: true,
-        robotState: state.robotState ? { ...state.robotState, isMoving: true } : null
-      };
+      
+      // Add to total rotation
+      newTracking.totalRotations += angleRad;
+      newTracking.totalRotationAngle += angleRad;
+      
+      console.log(`🧭 Total rotation: ${(newTracking.totalRotationAngle * 180 / Math.PI).toFixed(1)}°`);
+      
+      return { challengeTracking: newTracking };
     });
 
-    // Convert angle to radians and apply rotation
-    const angleRad = (angle * Math.PI) / 180;
-    const rotationDirection = direction === 'left' ? 1 : -1;
-    const totalRotation = angleRad * rotationDirection;
-
-    const currentState = get();
-    if (currentState.robotState) {
-      const currentRotation = currentState.robotState.rotation;
-      const newRotation = {
-        ...currentRotation,
-        y: (currentRotation.y + totalRotation) % (Math.PI * 2)
-      };
-
-      // Update rotation and tracking
-      set((state) => {
-        const newTracking = { ...state.challengeTracking };
-        newTracking.totalRotations += Math.abs(totalRotation);
-        newTracking.totalRotationAngle += Math.abs(totalRotation);
-        
-        return {
-          robotState: state.robotState ? {
-            ...state.robotState,
-            rotation: newRotation,
-          } : null,
-          challengeTracking: newTracking,
-        };
-      });
-
-      console.log(`🧭 New rotation: ${newRotation.y.toFixed(2)} rad (${(newRotation.y * 180 / Math.PI).toFixed(1)}°)`);
-      console.log(`↻ Total rotation: ${(currentState.challengeTracking.totalRotationAngle * 180 / Math.PI + angle).toFixed(1)}°`);
-    }
-
-    // Simulate rotation duration
-    await new Promise(resolve => setTimeout(resolve, 100)); // Quick simulation
-
-    // Stop movement and check objectives
-    set((state) => ({
-      isMoving: false,
-      robotState: state.robotState ? { ...state.robotState, isMoving: false } : null
-    }));
-
-    get().checkAndCompleteObjectives();
+    // Check objectives after rotation
+    setTimeout(() => get().checkAndCompleteObjectives(), 200);
+    
+    console.log(`✅ Rotation simulation complete`);
   },
 
   moveRobot: ({ direction, speed, joint }) => {
-    // Use the existing implementation for manual controls
     const state = get();
     if (!state.robotState) return;
 
+    // Clear any existing intervals
     if ((window as any).robotMoveInterval) {
       clearInterval((window as any).robotMoveInterval);
     }
@@ -404,6 +354,7 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
       moveCommands: { direction, speed, joint }
     });
 
+    // Track the movement direction for challenge completion
     set((state) => {
       const newTracking = { ...state.challengeTracking };
       switch (direction) {
@@ -428,7 +379,7 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
       return { challengeTracking: newTracking };
     });
 
-    // Continue with existing implementation for manual controls...
+    // Handle drone altitude changes
     if (state.selectedRobot?.type === 'drone' && joint === 'altitude') {
       const step = direction === 'up' ? 0.05 : -0.05;
       set((state) => ({
@@ -440,11 +391,148 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
       return;
     }
 
-    // ... rest of existing moveRobot implementation
+    if (state.selectedRobot?.type === 'arm' && joint) {
+      // Handle arm movement
+      const currentPos = state.jointPositions[joint];
+      const step = (direction === 'left' || direction === 'backward') ? -0.05 : 0.05;
+      const limits = {
+        base: { min: -Math.PI, max: Math.PI },
+        shoulder: { min: -Math.PI / 2, max: Math.PI / 4 },
+        elbow: { min: -Math.PI / 2, max: Math.PI / 2 },
+        wrist: { min: -Math.PI, max: Math.PI },
+      };
+
+      const newPos = currentPos + step;
+      const clampedPos = Math.max(limits[joint].min, Math.min(newPos, limits[joint].max));
+
+      set((state) => ({
+        jointPositions: {
+          ...state.jointPositions,
+          [joint]: clampedPos,
+        },
+      }));
+      
+      setTimeout(() => get().checkAndCompleteObjectives(), 100);
+      return;
+    }
+
+    // Handle movement for explorer bot (sphere robot)
+    if (state.selectedRobot?.type === 'explorer') {
+      const moveStep = 0.12 * speed;
+      const angle = state.robotState.rotation.y;
+      let deltaX = 0;
+      let deltaZ = 0;
+
+      switch (direction) {
+        case 'forward':
+          deltaX = Math.sin(angle) * moveStep;
+          deltaZ = Math.cos(angle) * moveStep;
+          break;
+        case 'backward':
+          deltaX = -Math.sin(angle) * moveStep;
+          deltaZ = -Math.cos(angle) * moveStep;
+          break;
+        case 'left':
+          deltaX = -Math.cos(angle) * moveStep;
+          deltaZ = Math.sin(angle) * moveStep;
+          break;
+        case 'right':
+          deltaX = Math.cos(angle) * moveStep;
+          deltaZ = -Math.sin(angle) * moveStep;
+          break;
+      }
+
+      const moveInterval = setInterval(() => {
+        const currentState = get();
+        if (!currentState.robotState || !currentState.isMoving) {
+          clearInterval(moveInterval);
+          return;
+        }
+
+        const newPosition = {
+          x: currentState.robotState.position.x + deltaX,
+          y: currentState.robotState.position.y,
+          z: currentState.robotState.position.z + deltaZ,
+        };
+
+        const distance = Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
+        
+        set((state) => {
+          const newTracking = { ...state.challengeTracking };
+          newTracking.totalDistanceMoved += distance;
+          
+          if (direction === 'forward') {
+            newTracking.maxForwardDistance = Math.max(newTracking.maxForwardDistance, newPosition.z);
+          } else if (direction === 'backward') {
+            newTracking.maxBackwardDistance = Math.max(newTracking.maxBackwardDistance, Math.abs(newPosition.z));
+          }
+          
+          return {
+            robotState: {
+              ...currentState.robotState,
+              position: newPosition,
+              isMoving: true,
+            },
+            challengeTracking: newTracking,
+          };
+        });
+        
+        get().checkAndCompleteObjectives();
+      }, 16);
+
+      (window as any).robotMoveInterval = moveInterval;
+      return;
+    }
+
+    // Handle movement for other robot types
+    const moveStep = 0.1 * speed;
+    const angle = state.robotState.rotation.y;
+    const deltaX = Math.sin(angle) * moveStep;
+    const deltaZ = Math.cos(angle) * moveStep;
+    const multiplier = direction === 'forward' ? 1 : -1;
+
+    const moveInterval = setInterval(() => {
+      const currentState = get();
+      if (!currentState.robotState || !currentState.isMoving) {
+        clearInterval(moveInterval);
+        return;
+      }
+
+      const newPosition = {
+        x: currentState.robotState.position.x + deltaX * multiplier,
+        y: currentState.robotState.position.y,
+        z: currentState.robotState.position.z + deltaZ * multiplier,
+      };
+
+      const distance = Math.sqrt((deltaX * multiplier) ** 2 + (deltaZ * multiplier) ** 2);
+      
+      set((state) => {
+        const newTracking = { ...state.challengeTracking };
+        newTracking.totalDistanceMoved += distance;
+        
+        if (direction === 'forward') {
+          newTracking.maxForwardDistance = Math.max(newTracking.maxForwardDistance, newPosition.z);
+        } else if (direction === 'backward') {
+          newTracking.maxBackwardDistance = Math.max(newTracking.maxBackwardDistance, Math.abs(newPosition.z));
+        }
+        
+        return {
+          robotState: {
+            ...currentState.robotState,
+            position: newPosition,
+            isMoving: true,
+          },
+          challengeTracking: newTracking,
+        };
+      });
+      
+      get().checkAndCompleteObjectives();
+    }, 16);
+
+    (window as any).robotMoveInterval = moveInterval;
   },
 
   rotateRobot: ({ direction, speed }) => {
-    // Use the existing implementation for manual controls
     const state = get();
     if (!state.robotState) return;
 
@@ -464,7 +552,44 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
       return { challengeTracking: newTracking };
     });
     
-    // ... rest of existing rotateRobot implementation
+    let rotateStep = 0.05 * speed;
+    if (state.selectedRobot?.type === 'explorer') {
+      rotateStep = 0.08 * speed;
+    }
+    
+    const delta = direction === 'left' ? rotateStep : -rotateStep;
+
+    const rotateInterval = setInterval(() => {
+      const currentState = get();
+      if (!currentState.robotState || !currentState.isMoving) {
+        clearInterval(rotateInterval);
+        return;
+      }
+
+      const newRotation = {
+        ...currentState.robotState.rotation,
+        y: (currentState.robotState.rotation.y + delta) % (Math.PI * 2),
+      };
+
+      set((state) => {
+        const newTracking = { ...state.challengeTracking };
+        newTracking.totalRotations += Math.abs(delta);
+        newTracking.totalRotationAngle += Math.abs(delta);
+        
+        return {
+          robotState: {
+            ...currentState.robotState,
+            rotation: newRotation,
+            isMoving: true,
+          },
+          challengeTracking: newTracking,
+        };
+      });
+      
+      get().checkAndCompleteObjectives();
+    }, 16);
+
+    (window as any).robotRotateInterval = rotateInterval;
   },
 
   stopRobot: () => {
