@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/layout/Layout';
 import SceneContainer from '@/components/simulator/SceneContainer';
 import ControlPanel from '@/components/simulator/ControlPanel';
@@ -230,6 +230,123 @@ console.log("Package picked up!");`
   }
 };
 
+// Theory Modal Component - moved outside and memoized
+const TheoryModal = React.memo<{
+  show: boolean;
+  onClose: () => void;
+  challenge: Challenge | null;
+  markTheoryViewed: (theoryId: string) => void;
+}>(({ show, onClose, challenge, markTheoryViewed }) => {
+  const theoryObjective = challenge?.objectives.find(obj => obj.theory);
+  
+  useEffect(() => {
+    if (!show || !challenge) return;
+    
+    // Mark theory as viewed when modal is opened
+    const theoryMap: Record<string, string> = {
+      'intro-1': 'movement_basics',
+      'intro-2': 'sensor_basics', 
+      'warehouse-1': 'path_planning'
+    };
+    
+    const theoryId = theoryMap[challenge.id];
+    if (theoryId) {
+      markTheoryViewed(theoryId);
+    }
+  }, [show, challenge?.id, markTheoryViewed]);
+
+  if (!show || !challenge) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-dark-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-dark-600">
+        <div className="p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold text-white flex items-center">
+              <BookOpen className="mr-2" />
+              Theory - {challenge.title}
+            </h2>
+            <button 
+              onClick={onClose}
+              className="text-dark-400 hover:text-white"
+            >
+              ×
+            </button>
+          </div>
+          
+          {theoryObjective && (
+            <div className="p-4 bg-dark-700 rounded-lg border border-dark-600">
+              <pre className="text-dark-300 whitespace-pre-wrap text-sm">
+                {theoryObjective.theory}
+              </pre>
+            </div>
+          )}
+          
+          <div className="bg-success-900/20 border border-success-600 rounded-lg p-4 mt-4">
+            <div className="flex items-center text-success-400 mb-2">
+              <CheckCircle size={16} className="mr-2" />
+              <span className="font-medium">Theory Study Complete!</span>
+            </div>
+            <p className="text-success-300 text-sm">
+              Theory-based objectives will be marked as complete.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// Hints Modal Component - moved outside and memoized
+const HintsModal = React.memo<{
+  show: boolean;
+  onClose: () => void;
+  challenge: Challenge | null;
+}>(({ show, onClose, challenge }) => {
+  if (!show || !challenge) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-dark-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-dark-600">
+        <div className="p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold text-white flex items-center">
+              <Lightbulb className="mr-2" />
+              Hints - {challenge.title}
+            </h2>
+            <button 
+              onClick={onClose}
+              className="text-dark-400 hover:text-white"
+            >
+              ×
+            </button>
+          </div>
+          
+          <div className="space-y-4">
+            {challenge.hints?.map((hint, index) => (
+              <div key={hint.id} className="p-4 bg-dark-700 rounded-lg border border-dark-600">
+                <h3 className="text-white font-medium mb-2">Hint #{index + 1}</h3>
+                <p className="text-dark-300">{hint.text}</p>
+              </div>
+            ))}
+            
+            {challenge.objectives?.map((objective) => 
+              objective.hints?.map((hint, hintIndex) => (
+                <div key={`${objective.id}-${hintIndex}`} className="p-4 bg-dark-700 rounded-lg border border-dark-600">
+                  <h3 className="text-white font-medium mb-2">
+                    {objective.description} - Hint #{hintIndex + 1}
+                  </h3>
+                  <p className="text-dark-300">{hint}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
+
 const SimulatorPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<EditorTab>('code');
   const [currentChallenge, setCurrentChallenge] = useState<Challenge | null>(null);
@@ -251,6 +368,9 @@ const SimulatorPage: React.FC = () => {
     stopRobot,
     robotState
   } = useRobotStore();
+
+  // Memoize the markTheoryViewed function to prevent unnecessary re-renders
+  const memoizedMarkTheoryViewed = useCallback(markTheoryViewed, [markTheoryViewed]);
 
   // Load challenge from URL parameter
   useEffect(() => {
@@ -432,112 +552,6 @@ const SimulatorPage: React.FC = () => {
 
   const progress = getCompletedObjectivesCount();
   const progressPercentage = progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0;
-
-  // Theory Modal Component
-  const TheoryModal = () => {
-    if (!showTheoryModal || !currentChallenge) return null;
-
-    const theoryObjective = currentChallenge.objectives.find(obj => obj.theory);
-    
-    useEffect(() => {
-      // Mark theory as viewed when modal is opened
-      const theoryMap: Record<string, string> = {
-        'intro-1': 'movement_basics',
-        'intro-2': 'sensor_basics', 
-        'warehouse-1': 'path_planning'
-      };
-      
-      const theoryId = theoryMap[currentChallenge.id];
-      if (theoryId) {
-        markTheoryViewed(theoryId);
-      }
-    }, []);
-
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-dark-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-dark-600">
-          <div className="p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-white flex items-center">
-                <BookOpen className="mr-2" />
-                Theory - {currentChallenge.title}
-              </h2>
-              <button 
-                onClick={() => setShowTheoryModal(false)}
-                className="text-dark-400 hover:text-white"
-              >
-                ×
-              </button>
-            </div>
-            
-            {theoryObjective && (
-              <div className="p-4 bg-dark-700 rounded-lg border border-dark-600">
-                <pre className="text-dark-300 whitespace-pre-wrap text-sm">
-                  {theoryObjective.theory}
-                </pre>
-              </div>
-            )}
-            
-            <div className="bg-success-900/20 border border-success-600 rounded-lg p-4 mt-4">
-              <div className="flex items-center text-success-400 mb-2">
-                <CheckCircle size={16} className="mr-2" />
-                <span className="font-medium">Theory Study Complete!</span>
-              </div>
-              <p className="text-success-300 text-sm">
-                Theory-based objectives will be marked as complete.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Hints Modal Component
-  const HintsModal = () => {
-    if (!showHintsModal || !currentChallenge) return null;
-
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-dark-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-dark-600">
-          <div className="p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-white flex items-center">
-                <Lightbulb className="mr-2" />
-                Hints - {currentChallenge.title}
-              </h2>
-              <button 
-                onClick={() => setShowHintsModal(false)}
-                className="text-dark-400 hover:text-white"
-              >
-                ×
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              {currentChallenge.hints?.map((hint, index) => (
-                <div key={hint.id} className="p-4 bg-dark-700 rounded-lg border border-dark-600">
-                  <h3 className="text-white font-medium mb-2">Hint #{index + 1}</h3>
-                  <p className="text-dark-300">{hint.text}</p>
-                </div>
-              ))}
-              
-              {currentChallenge.objectives?.map((objective) => 
-                objective.hints?.map((hint, hintIndex) => (
-                  <div key={`${objective.id}-${hintIndex}`} className="p-4 bg-dark-700 rounded-lg border border-dark-600">
-                    <h3 className="text-white font-medium mb-2">
-                      {objective.description} - Hint #{hintIndex + 1}
-                    </h3>
-                    <p className="text-dark-300">{hint}</p>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   if (!currentChallenge) {
     return (
@@ -758,8 +772,17 @@ const SimulatorPage: React.FC = () => {
       </div>
 
       {/* Modals */}
-      <TheoryModal />
-      <HintsModal />
+      <TheoryModal 
+        show={showTheoryModal}
+        onClose={() => setShowTheoryModal(false)}
+        challenge={currentChallenge}
+        markTheoryViewed={memoizedMarkTheoryViewed}
+      />
+      <HintsModal 
+        show={showHintsModal}
+        onClose={() => setShowHintsModal(false)}
+        challenge={currentChallenge}
+      />
     </Layout>
   );
 };

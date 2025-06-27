@@ -952,17 +952,23 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
   },
 
   markTheoryViewed: (theoryId: string) => {
+    const state = get();
+    
+    // Check if theory is already viewed to prevent unnecessary state updates
+    if (state.challengeTracking.viewedTheory.has(theoryId)) {
+      return; // Exit early if already viewed
+    }
+    
     set((state) => {
       const newTracking = { ...state.challengeTracking };
-      if (!newTracking.viewedTheory.has(theoryId)) {
-        newTracking.viewedTheory.add(theoryId);
-        console.log(`📚 Theory viewed: ${theoryId}`);
-        
-        // Check if this completes a theory-based objective
-        setTimeout(() => get().checkAndCompleteObjectives(), 100);
-      }
+      newTracking.viewedTheory.add(theoryId);
+      console.log(`📚 Theory viewed: ${theoryId}`);
+      
       return { challengeTracking: newTracking };
     });
+    
+    // Check if this completes a theory-based objective
+    setTimeout(() => get().checkAndCompleteObjectives(), 100);
   },
 
   getObjectiveStatus: (objectiveId) => {
