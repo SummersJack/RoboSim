@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/layout/Layout';
 import { ChevronRight, ChevronDown, Trophy, LockKeyhole, Star, Book, Tag, Play, CheckCircle, Clock, Target, Award, HelpCircle, Eye, BookOpen, Code, Lightbulb, X } from 'lucide-react';
 import { useNavigate } from '@/hooks/useNavigation';
@@ -6,7 +6,7 @@ import { useRobotStore } from '@/store/robotStore';
 import { ChallengeCategory, DifficultyLevel, Challenge } from '@/types/challenge.types';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// Enhanced challenge data with proper completion criteria
+// Complete challenge data with proper completion tracking
 const challenges: Challenge[] = [
   {
     id: 'intro-1',
@@ -195,6 +195,33 @@ console.log("Distance to obstacle:", distance, "meters");
 
 Each sensor type has specific uses and limitations.`,
           video: 'https://example.com/robot-sensors-intro',
+        },
+        {
+          title: 'Using the Ultrasonic Sensor',
+          content: `The ultrasonic sensor measures distance using sound waves:
+- Returns distance in meters
+- Updates several times per second
+- Works best for obstacles 0.02m to 4m away
+- May have difficulty with soft or angled surfaces`,
+          examples: [
+            {
+              title: 'Reading Distance',
+              code: 'const distance = await robot.getSensor("ultrasonic");',
+              explanation: 'Gets the current distance reading in meters'
+            },
+            {
+              title: 'Continuous Monitoring',
+              code: `while (true) {
+  const distance = await robot.getSensor("ultrasonic");
+  if (distance < 0.5) {  // If closer than 0.5 meters
+    await robot.stop();
+    break;
+  }
+  await robot.wait(100);  // Wait 100ms before next reading
+}`,
+              explanation: 'Continuously monitors distance and stops when too close to an obstacle'
+            }
+          ]
         }
       ],
       quiz: [
@@ -203,6 +230,17 @@ Each sensor type has specific uses and limitations.`,
           options: ['Centimeters', 'Meters', 'Feet', 'Inches'],
           correctAnswer: 'Meters',
           explanation: 'The ultrasonic sensor returns distance measurements in meters.'
+        },
+        {
+          question: 'Why should we wait between sensor readings?',
+          options: [
+            'To save battery',
+            'To allow the sensor to update',
+            'To prevent program crashes',
+            'To slow the robot down'
+          ],
+          correctAnswer: 'To allow the sensor to update',
+          explanation: 'Sensors need time to take new readings. Waiting ensures we get fresh data.'
         }
       ]
     },
@@ -288,6 +326,41 @@ We'll use sensors and algorithms to navigate safely.`
 
 This requires combining multiple skills and sensors.`,
           video: 'https://example.com/warehouse-navigation',
+        },
+        {
+          title: 'Path Planning Strategies',
+          content: `Effective path planning involves:
+1. Breaking down the path into segments
+2. Continuous obstacle monitoring
+3. Dynamic path adjustment
+4. Position verification`,
+          examples: [
+            {
+              title: 'Basic Navigation',
+              code: `// Move to a specific coordinate
+async function moveToPosition(x, z) {
+  // Calculate angle to target
+  const angle = Math.atan2(z - robot.position.z, x - robot.position.x);
+  
+  // Rotate to face target
+  await robot.rotateTo(angle);
+  
+  // Move to target
+  while (Math.abs(x - robot.position.x) > 0.1 || 
+         Math.abs(z - robot.position.z) > 0.1) {
+    const distance = await robot.getSensor("ultrasonic");
+    if (distance < 1) {
+      // Obstacle detected, handle it
+      await handleObstacle();
+    } else {
+      await robot.move({ direction: "forward", speed: 0.5, duration: 100 });
+    }
+    await robot.wait(50);
+  }
+}`,
+              explanation: 'A basic function to move to specific coordinates while avoiding obstacles'
+            }
+          ]
         }
       ],
       quiz: [
@@ -301,6 +374,17 @@ This requires combining multiple skills and sensors.`,
           ],
           correctAnswer: 'Find an alternative path',
           explanation: 'When an obstacle is detected, the robot should plan and follow an alternative path to reach its goal.'
+        },
+        {
+          question: 'Why is position verification important?',
+          options: [
+            'To save battery',
+            'To maintain accurate navigation',
+            'To avoid collisions',
+            'To increase speed'
+          ],
+          correctAnswer: 'To maintain accurate navigation',
+          explanation: 'Regular position verification ensures the robot stays on course and reaches its intended destination.'
         }
       ]
     },
@@ -334,7 +418,7 @@ const ChallengesPage: React.FC = () => {
     markTheoryViewed
   } = useRobotStore();
 
-  // Real-time objective completion listener
+  // Real-time objective and challenge completion listeners
   useEffect(() => {
     const handleObjectiveCompleted = (event: CustomEvent) => {
       const { objectiveId, challengeId } = event.detail;
@@ -382,7 +466,10 @@ const ChallengesPage: React.FC = () => {
       prev.map(challenge => ({
         ...challenge,
         completed: getChallengeStatus(challenge.id),
-        unlocked: challenge.id === 'intro-1' || getChallengeStatus('intro-1'), // Unlock logic
+        // Dynamic unlocking logic: intro-1 is always unlocked, others unlock when previous is complete
+        unlocked: challenge.id === 'intro-1' || 
+                 (challenge.id === 'intro-2' && getChallengeStatus('intro-1')) ||
+                 (challenge.id === 'warehouse-1' && getChallengeStatus('intro-2')),
         objectives: challenge.objectives.map(obj => ({
           ...obj,
           completed: getObjectiveStatus(obj.id)
@@ -391,32 +478,27 @@ const ChallengesPage: React.FC = () => {
     );
   }, [challengeTracking.completedChallenges, challengeTracking.completedObjectives, getChallengeStatus, getObjectiveStatus]);
 
-  // Modal handlers
-  const openModal = (type: string, data: Challenge | null = null) => {
+  // Memoized modal handlers to prevent infinite loops
+  const openModal = useCallback((type: string, data: Challenge | null = null) => {
     if (data) {
       setActiveModal({ type, data });
-      
-      // Mark theory as viewed when theory modal is opened
-      if (type === 'theory') {
-        markTheoryViewed('movement_basics'); // This should be dynamic based on challenge
-      }
     }
-  };
+  }, []);
 
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     setActiveModal(null);
     setSelectedHints([]);
     setCurrentQuizAnswer({});
     setShowQuizResults({});
-  };
+  }, []);
 
-  const handleHintUnlock = (hint: { id: string; unlockCost: number }) => {
+  const handleHintUnlock = useCallback((hint: { id: string; unlockCost: number }) => {
     if (hint.unlockCost === 0 || window.confirm(`Unlock this hint for ${hint.unlockCost} points?`)) {
       setSelectedHints(prev => [...prev, hint.id]);
     }
-  };
+  }, []);
 
-  const handleQuizAnswer = (questionIndex: number, answer: string, correctAnswer: string) => {
+  const handleQuizAnswer = useCallback((questionIndex: number, answer: string, correctAnswer: string) => {
     setCurrentQuizAnswer(prev => ({
       ...prev,
       [questionIndex]: answer
@@ -431,7 +513,7 @@ const ChallengesPage: React.FC = () => {
         }
       }));
     }, 500);
-  };
+  }, []);
 
   const filteredChallenges = realtimeChallenges.filter(challenge => 
     (selectedCategory === 'all' || challenge.category === selectedCategory) &&
@@ -499,22 +581,27 @@ const ChallengesPage: React.FC = () => {
   const totalChallenges = challenges.length;
   const completedObjectivesCount = Array.from(challengeTracking.completedObjectives).length;
 
-  // Enhanced Theory Modal with proper theory tracking
-  const TheoryModal: React.FC<{ challenge: Challenge }> = ({ challenge }) => {
+  // Fixed Theory Modal without infinite loop
+  const TheoryModal: React.FC<{ challenge: Challenge }> = React.memo(({ challenge }) => {
+    // Use a ref to track if theory has been marked as viewed for this modal instance
+    const [hasMarkedViewed, setHasMarkedViewed] = useState(false);
     
     useEffect(() => {
-      // Mark theory as viewed when modal opens
-      const theoryMap: Record<string, string> = {
-        'intro-1': 'movement_basics',
-        'intro-2': 'sensor_basics',
-        'warehouse-1': 'path_planning'
-      };
-      
-      const theoryId = theoryMap[challenge.id];
-      if (theoryId) {
-        markTheoryViewed(theoryId);
+      // Only mark theory as viewed once per modal opening
+      if (!hasMarkedViewed) {
+        const theoryMap: Record<string, string> = {
+          'intro-1': 'movement_basics',
+          'intro-2': 'sensor_basics',
+          'warehouse-1': 'path_planning'
+        };
+        
+        const theoryId = theoryMap[challenge.id];
+        if (theoryId) {
+          markTheoryViewed(theoryId);
+          setHasMarkedViewed(true);
+        }
       }
-    }, [challenge.id]);
+    }, [challenge.id, hasMarkedViewed, markTheoryViewed]);
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -574,10 +661,10 @@ const ChallengesPage: React.FC = () => {
         </div>
       </div>
     );
-  };
+  });
 
-  // Other modal components remain the same but with enhanced completion tracking...
-  const QuizModal: React.FC<{ challenge: Challenge }> = ({ challenge }) => (
+  // Other modal components
+  const QuizModal: React.FC<{ challenge: Challenge }> = React.memo(({ challenge }) => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-dark-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-dark-600">
         <div className="p-6">
@@ -639,9 +726,9 @@ const ChallengesPage: React.FC = () => {
         </div>
       </div>
     </div>
-  );
+  ));
 
-  const HintsModal: React.FC<{ challenge: Challenge }> = ({ challenge }) => (
+  const HintsModal: React.FC<{ challenge: Challenge }> = React.memo(({ challenge }) => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-dark-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-dark-600">
         <div className="p-6">
@@ -694,9 +781,9 @@ const ChallengesPage: React.FC = () => {
         </div>
       </div>
     </div>
-  );
+  ));
 
-  const CodeModal: React.FC<{ challenge: Challenge }> = ({ challenge }) => (
+  const CodeModal: React.FC<{ challenge: Challenge }> = React.memo(({ challenge }) => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-dark-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-dark-600">
         <div className="p-6">
@@ -748,7 +835,7 @@ const ChallengesPage: React.FC = () => {
         </div>
       </div>
     </div>
-  );
+  ));
 
   return (
     <Layout>
