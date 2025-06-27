@@ -50,6 +50,8 @@ interface ChallengeTracking {
   targetPositions: Array<{ x: number, z: number, reached: boolean }>;
   hasReachedPickupArea: boolean;
   hasCompletedPath: boolean;
+  gridPointsVisited: Set<string>;
+  patrolWaypoints: number;
 }
 
 interface RobotStoreState {
