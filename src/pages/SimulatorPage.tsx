@@ -433,14 +433,12 @@ const SimulatorPage: React.FC = () => {
   const progress = getCompletedObjectivesCount();
   const progressPercentage = progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0;
 
-  // Theory Modal Component
-  const TheoryModal = () => {
-    if (!showTheoryModal || !currentChallenge) return null;
-
-    const theoryObjective = currentChallenge.objectives.find(obj => obj.theory);
+  // Handle opening theory modal and marking theory as viewed
+  const handleOpenTheoryModal = () => {
+    setShowTheoryModal(true);
     
-    useEffect(() => {
-      // Mark theory as viewed when modal is opened
+    // Mark theory as viewed when modal is opened
+    if (currentChallenge) {
       const theoryMap: Record<string, string> = {
         'intro-1': 'movement_basics',
         'intro-2': 'sensor_basics', 
@@ -451,7 +449,14 @@ const SimulatorPage: React.FC = () => {
       if (theoryId) {
         markTheoryViewed(theoryId);
       }
-    }, []);
+    }
+  };
+
+  // Theory Modal Component
+  const TheoryModal = () => {
+    if (!showTheoryModal || !currentChallenge) return null;
+
+    const theoryObjective = currentChallenge.objectives.find(obj => obj.theory);
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -586,7 +591,7 @@ const SimulatorPage: React.FC = () => {
               {/* Helper buttons */}
               <div className="hidden lg:flex space-x-3">
                 <button
-                  onClick={() => setShowTheoryModal(true)}
+                  onClick={handleOpenTheoryModal}
                   className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded flex items-center text-sm"
                 >
                   <BookOpen size={14} className="mr-2" />
