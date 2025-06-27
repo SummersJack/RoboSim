@@ -376,8 +376,22 @@ const ChallengesPage: React.FC = () => {
   const openModal = useCallback((type: string, data: Challenge | null = null) => {
     if (data) {
       setActiveModal({ type, data });
+      
+      // Mark theory as viewed when opening theory modal
+      if (type === 'theory') {
+        const theoryMap: Record<string, string> = {
+          'intro-1': 'movement_basics',
+          'intro-2': 'sensor_basics',
+          'warehouse-1': 'path_planning'
+        };
+        
+        const theoryId = theoryMap[data.id];
+        if (theoryId) {
+          markTheoryViewed(theoryId);
+        }
+      }
     }
-  }, []);
+  }, [markTheoryViewed]);
 
   const closeModal = useCallback(() => {
     setActiveModal(null);
@@ -482,26 +496,6 @@ const ChallengesPage: React.FC = () => {
 
   // Fixed Theory Modal without infinite loop
   const TheoryModal: React.FC<{ challenge: Challenge }> = React.memo(({ challenge }) => {
-    // Use a ref to track if theory has been marked as viewed for this modal instance
-    const [hasMarkedViewed, setHasMarkedViewed] = useState(false);
-    
-    useEffect(() => {
-      // Only mark theory as viewed once per modal opening
-      if (!hasMarkedViewed) {
-        const theoryMap: Record<string, string> = {
-          'intro-1': 'movement_basics',
-          'intro-2': 'sensor_basics',
-          'warehouse-1': 'path_planning'
-        };
-        
-        const theoryId = theoryMap[challenge.id];
-        if (theoryId) {
-          markTheoryViewed(theoryId);
-          setHasMarkedViewed(true);
-        }
-      }
-    }, [challenge.id, hasMarkedViewed]);
-
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-dark-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-dark-600">
