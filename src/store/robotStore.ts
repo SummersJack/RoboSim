@@ -864,6 +864,52 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
     const { challengeTracking } = state;
     const challengeId = challengeTracking.currentChallengeId;
 
+    // Patrol route
+if (state.challengeTracking.currentChallengeId === 'patrol-1') {
+  const waypoints = [{x: 3, z: 0}, {x: 3, z: 3}, {x: 0, z: 3}, {x: 0, z: 0}];
+  for (let waypoint of waypoints) {
+    const distance = Math.sqrt(
+      Math.pow(position.x - waypoint.x, 2) + 
+      Math.pow(position.z - waypoint.z, 2)
+    );
+    if (distance < 0.5) {
+      console.log('🎯 Waypoint reached!');
+    }
+  }
+}
+
+// Circle movement  
+if (state.challengeTracking.currentChallengeId === 'circle-1') {
+  if (challengeTracking.totalDistanceMoved > 12 && !challengeTracking.completedObjectives.has('obj2')) {
+    console.log('🎯 Objective completed: Circle completed!');
+    get().markObjectiveCompleted('obj2');
+  }
+}
+
+// Grid navigation
+if (state.challengeTracking.currentChallengeId === 'grid-1') {
+  const gridTargets = [{x: 2, z: 2}, {x: 6, z: 2}, {x: 6, z: 6}, {x: 2, z: 6}, {x: 4, z: 4}];
+  for (let target of gridTargets) {
+    const distance = Math.sqrt(
+      Math.pow(position.x - target.x, 2) + 
+      Math.pow(position.z - target.z, 2)
+    );
+    if (distance < 0.5 && !challengeTracking.completedObjectives.has('obj2')) {
+      console.log('🎯 Grid point reached!');
+      get().markObjectiveCompleted('obj2');
+    }
+  }
+}
+
+// Spiral pattern
+if (state.challengeTracking.currentChallengeId === 'spiral-1') {
+  if (challengeTracking.totalDistanceMoved > 15 && !challengeTracking.completedObjectives.has('obj2')) {
+    console.log('🎯 Objective completed: Spiral pattern executed!');
+    get().markObjectiveCompleted('obj2');
+  }
+}
+
+
     // Get objectives for current challenge
     const objectives = CHALLENGE_OBJECTIVES[challengeId as keyof typeof CHALLENGE_OBJECTIVES];
     if (!objectives) return;
