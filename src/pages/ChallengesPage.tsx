@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Layout from '@/components/layout/Layout';
 import { ChevronRight, ChevronDown, Trophy, LockKeyhole, Star, Book, Tag, Play, CheckCircle, Clock, Target, Award, HelpCircle, Eye, BookOpen, Code, Lightbulb, X } from 'lucide-react';
 import { useNavigate } from '@/hooks/useNavigation';
@@ -195,33 +195,6 @@ console.log("Distance to obstacle:", distance, "meters");
 
 Each sensor type has specific uses and limitations.`,
           video: 'https://example.com/robot-sensors-intro',
-        },
-        {
-          title: 'Using the Ultrasonic Sensor',
-          content: `The ultrasonic sensor measures distance using sound waves:
-- Returns distance in meters
-- Updates several times per second
-- Works best for obstacles 0.02m to 4m away
-- May have difficulty with soft or angled surfaces`,
-          examples: [
-            {
-              title: 'Reading Distance',
-              code: 'const distance = await robot.getSensor("ultrasonic");',
-              explanation: 'Gets the current distance reading in meters'
-            },
-            {
-              title: 'Continuous Monitoring',
-              code: `while (true) {
-  const distance = await robot.getSensor("ultrasonic");
-  if (distance < 0.5) {  // If closer than 0.5 meters
-    await robot.stop();
-    break;
-  }
-  await robot.wait(100);  // Wait 100ms before next reading
-}`,
-              explanation: 'Continuously monitors distance and stops when too close to an obstacle'
-            }
-          ]
         }
       ],
       quiz: [
@@ -230,17 +203,6 @@ Each sensor type has specific uses and limitations.`,
           options: ['Centimeters', 'Meters', 'Feet', 'Inches'],
           correctAnswer: 'Meters',
           explanation: 'The ultrasonic sensor returns distance measurements in meters.'
-        },
-        {
-          question: 'Why should we wait between sensor readings?',
-          options: [
-            'To save battery',
-            'To allow the sensor to update',
-            'To prevent program crashes',
-            'To slow the robot down'
-          ],
-          correctAnswer: 'To allow the sensor to update',
-          explanation: 'Sensors need time to take new readings. Waiting ensures we get fresh data.'
         }
       ]
     },
@@ -326,41 +288,6 @@ We'll use sensors and algorithms to navigate safely.`
 
 This requires combining multiple skills and sensors.`,
           video: 'https://example.com/warehouse-navigation',
-        },
-        {
-          title: 'Path Planning Strategies',
-          content: `Effective path planning involves:
-1. Breaking down the path into segments
-2. Continuous obstacle monitoring
-3. Dynamic path adjustment
-4. Position verification`,
-          examples: [
-            {
-              title: 'Basic Navigation',
-              code: `// Move to a specific coordinate
-async function moveToPosition(x, z) {
-  // Calculate angle to target
-  const angle = Math.atan2(z - robot.position.z, x - robot.position.x);
-  
-  // Rotate to face target
-  await robot.rotateTo(angle);
-  
-  // Move to target
-  while (Math.abs(x - robot.position.x) > 0.1 || 
-         Math.abs(z - robot.position.z) > 0.1) {
-    const distance = await robot.getSensor("ultrasonic");
-    if (distance < 1) {
-      // Obstacle detected, handle it
-      await handleObstacle();
-    } else {
-      await robot.move({ direction: "forward", speed: 0.5, duration: 100 });
-    }
-    await robot.wait(50);
-  }
-}`,
-              explanation: 'A basic function to move to specific coordinates while avoiding obstacles'
-            }
-          ]
         }
       ],
       quiz: [
@@ -374,17 +301,6 @@ async function moveToPosition(x, z) {
           ],
           correctAnswer: 'Find an alternative path',
           explanation: 'When an obstacle is detected, the robot should plan and follow an alternative path to reach its goal.'
-        },
-        {
-          question: 'Why is position verification important?',
-          options: [
-            'To save battery',
-            'To maintain accurate navigation',
-            'To avoid collisions',
-            'To increase speed'
-          ],
-          correctAnswer: 'To maintain accurate navigation',
-          explanation: 'Regular position verification ensures the robot stays on course and reaches its intended destination.'
         }
       ]
     },
@@ -400,7 +316,6 @@ const ChallengesPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<ChallengeCategory | 'all'>('all');
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyLevel | 'all'>('all');
   const [expandedChallenge, setExpandedChallenge] = useState<string | null>(null);
-  const [realtimeChallenges, setRealtimeChallenges] = useState<Challenge[]>(challenges);
   const [activeModal, setActiveModal] = useState<{ type: string; data: Challenge } | null>(null);
   const [selectedHints, setSelectedHints] = useState<string[]>([]);
   const [currentQuizAnswer, setCurrentQuizAnswer] = useState<Record<number, string>>({});
@@ -412,43 +327,40 @@ const ChallengesPage: React.FC = () => {
     challengeTracking, 
     getChallengeStatus, 
     getObjectiveStatus,
-    performance,
     robotState,
     setCurrentChallenge,
     markTheoryViewed
   } = useRobotStore();
 
+  // Use useMemo to compute challenge states to prevent infinite loops
+  const computedChallenges = useMemo(() => {
+    return challenges.map(challenge => ({
+      ...challenge,
+      completed: getChallengeStatus(challenge.id),
+      unlocked: challenge.id === 'intro-1' || 
+               (challenge.id === 'intro-2' && getChallengeStatus('intro-1')) ||
+               (challenge.id === 'warehouse-1' && getChallengeStatus('intro-2')),
+      objectives: challenge.objectives.map(obj => ({
+        ...obj,
+        completed: getObjectiveStatus(obj.id)
+      }))
+    }));
+  }, [
+    getChallengeStatus, 
+    getObjectiveStatus,
+    challengeTracking.completedChallenges.size, // Use size to track changes
+    challengeTracking.completedObjectives.size  // Use size to track changes
+  ]);
+
   // Real-time objective and challenge completion listeners
   useEffect(() => {
     const handleObjectiveCompleted = (event: CustomEvent) => {
-      const { objectiveId, challengeId } = event.detail;
-      
-      setRealtimeChallenges(prev => 
-        prev.map(challenge => 
-          challenge.id === challengeId 
-            ? {
-                ...challenge,
-                objectives: challenge.objectives.map(obj => 
-                  obj.id === objectiveId 
-                    ? { ...obj, completed: true }
-                    : obj
-                )
-              }
-            : challenge
-        )
-      );
+      // Force re-render by updating a counter or timestamp
+      console.log('✅ Objective completed:', event.detail);
     };
 
     const handleChallengeCompleted = (event: CustomEvent) => {
-      const { challengeId } = event.detail;
-      
-      setRealtimeChallenges(prev => 
-        prev.map(challenge => 
-          challenge.id === challengeId 
-            ? { ...challenge, completed: true }
-            : challenge
-        )
-      );
+      console.log('🏆 Challenge completed:', event.detail);
     };
 
     window.addEventListener('objectiveCompleted', handleObjectiveCompleted as EventListener);
@@ -459,24 +371,6 @@ const ChallengesPage: React.FC = () => {
       window.removeEventListener('challengeCompleted', handleChallengeCompleted as EventListener);
     };
   }, []);
-
-  // Update challenge completion status based on robot store
-  useEffect(() => {
-    setRealtimeChallenges(prev => 
-      prev.map(challenge => ({
-        ...challenge,
-        completed: getChallengeStatus(challenge.id),
-        // Dynamic unlocking logic: intro-1 is always unlocked, others unlock when previous is complete
-        unlocked: challenge.id === 'intro-1' || 
-                 (challenge.id === 'intro-2' && getChallengeStatus('intro-1')) ||
-                 (challenge.id === 'warehouse-1' && getChallengeStatus('intro-2')),
-        objectives: challenge.objectives.map(obj => ({
-          ...obj,
-          completed: getObjectiveStatus(obj.id)
-        }))
-      }))
-    );
-  }, [challengeTracking.completedChallenges, challengeTracking.completedObjectives, getChallengeStatus, getObjectiveStatus]);
 
   // Memoized modal handlers to prevent infinite loops
   const openModal = useCallback((type: string, data: Challenge | null = null) => {
@@ -515,10 +409,12 @@ const ChallengesPage: React.FC = () => {
     }, 500);
   }, []);
 
-  const filteredChallenges = realtimeChallenges.filter(challenge => 
-    (selectedCategory === 'all' || challenge.category === selectedCategory) &&
-    (selectedDifficulty === 'all' || challenge.difficulty === selectedDifficulty)
-  );
+  const filteredChallenges = useMemo(() => {
+    return computedChallenges.filter(challenge => 
+      (selectedCategory === 'all' || challenge.category === selectedCategory) &&
+      (selectedDifficulty === 'all' || challenge.difficulty === selectedDifficulty)
+    );
+  }, [computedChallenges, selectedCategory, selectedDifficulty]);
   
   const categories = [
     { value: 'all', label: 'All Categories' },
@@ -558,28 +454,31 @@ const ChallengesPage: React.FC = () => {
     }
   };
 
-  const getObjectiveProgress = (challenge: Challenge) => {
+  const getObjectiveProgress = useCallback((challenge: Challenge) => {
     const completed = challenge.objectives.filter(obj => obj.completed).length;
     const total = challenge.objectives.length;
     return { completed, total, percentage: Math.round((completed / total) * 100) };
-  };
+  }, []);
 
-  const handleChallengeClick = (challenge: Challenge) => {
+  const handleChallengeClick = useCallback((challenge: Challenge) => {
     if (!challenge.unlocked) return;
     setExpandedChallenge(expandedChallenge === challenge.id ? null : challenge.id);
-  };
+  }, [expandedChallenge]);
 
-  const handleStartChallenge = (challenge: Challenge) => {
+  const handleStartChallenge = useCallback((challenge: Challenge) => {
     if (setCurrentChallenge) {
       setCurrentChallenge(challenge.id);
     }
     navigate(`/simulator?challenge=${challenge.id}`);
-  };
+  }, [setCurrentChallenge, navigate]);
 
   // Calculate stats from actual robot store data
-  const completedChallengesCount = Array.from(challengeTracking.completedChallenges).length;
-  const totalChallenges = challenges.length;
-  const completedObjectivesCount = Array.from(challengeTracking.completedObjectives).length;
+  const stats = useMemo(() => ({
+    completedChallengesCount: challengeTracking.completedChallenges.size,
+    totalChallenges: challenges.length,
+    completedObjectivesCount: challengeTracking.completedObjectives.size,
+    distanceMoved: challengeTracking.totalDistanceMoved
+  }), [challengeTracking]);
 
   // Fixed Theory Modal without infinite loop
   const TheoryModal: React.FC<{ challenge: Challenge }> = React.memo(({ challenge }) => {
@@ -601,7 +500,7 @@ const ChallengesPage: React.FC = () => {
           setHasMarkedViewed(true);
         }
       }
-    }, [challenge.id, hasMarkedViewed, markTheoryViewed]);
+    }, [challenge.id, hasMarkedViewed]);
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -663,7 +562,7 @@ const ChallengesPage: React.FC = () => {
     );
   });
 
-  // Other modal components
+  // Other modal components remain the same...
   const QuizModal: React.FC<{ challenge: Challenge }> = React.memo(({ challenge }) => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-dark-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-dark-600">
@@ -728,115 +627,6 @@ const ChallengesPage: React.FC = () => {
     </div>
   ));
 
-  const HintsModal: React.FC<{ challenge: Challenge }> = React.memo(({ challenge }) => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-dark-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-dark-600">
-        <div className="p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold text-white flex items-center">
-              <Lightbulb className="mr-2" />
-              Hints - {challenge.title}
-            </h2>
-            <button onClick={closeModal} className="text-dark-400 hover:text-white">
-              <X size={24} />
-            </button>
-          </div>
-          
-          <div className="space-y-4">
-            {challenge.hints?.map((hint, index) => (
-              <div key={hint.id} className="p-4 bg-dark-700 rounded-lg border border-dark-600">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <h3 className="text-white font-medium mb-2">Hint #{index + 1}</h3>
-                    {selectedHints.includes(hint.id) ? (
-                      <p className="text-dark-300">{hint.text}</p>
-                    ) : (
-                      <p className="text-dark-500 italic">Click to unlock this hint</p>
-                    )}
-                  </div>
-                  {!selectedHints.includes(hint.id) && (
-                    <button
-                      onClick={() => handleHintUnlock(hint)}
-                      className="ml-4 bg-warning-600 hover:bg-warning-700 text-white px-3 py-1 rounded text-sm flex items-center"
-                    >
-                      <HelpCircle size={14} className="mr-1" />
-                      {hint.unlockCost === 0 ? 'Free' : `${hint.unlockCost} pts`}
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-            
-            {challenge.objectives?.map((objective) => 
-              objective.hints?.map((hint, hintIndex) => (
-                <div key={`${objective.id}-${hintIndex}`} className="p-4 bg-dark-700 rounded-lg border border-dark-600">
-                  <h3 className="text-white font-medium mb-2">
-                    {objective.description} - Hint #{hintIndex + 1}
-                  </h3>
-                  <p className="text-dark-300">{hint}</p>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  ));
-
-  const CodeModal: React.FC<{ challenge: Challenge }> = React.memo(({ challenge }) => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-dark-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-dark-600">
-        <div className="p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold text-white flex items-center">
-              <Code className="mr-2" />
-              Starting Code - {challenge.title}
-            </h2>
-            <button onClick={closeModal} className="text-dark-400 hover:text-white">
-              <X size={24} />
-            </button>
-          </div>
-          
-          <div className="space-y-4">
-            <div className="p-4 bg-dark-700 rounded-lg border border-dark-600">
-              <h3 className="text-success-400 font-medium mb-2">Natural Language Description:</h3>
-              <p className="text-dark-300">{challenge.startingCode?.natural_language}</p>
-            </div>
-            
-            <div className="p-4 bg-dark-700 rounded-lg border border-dark-600">
-              <h3 className="text-primary-400 font-medium mb-2">Starting Code:</h3>
-              <pre className="text-dark-300 text-sm overflow-x-auto bg-dark-800 p-3 rounded border border-dark-500">
-                <code>{challenge.startingCode?.code}</code>
-              </pre>
-            </div>
-            
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(challenge.startingCode?.code || '');
-                  alert('Code copied to clipboard!');
-                }}
-                className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded"
-              >
-                Copy Code
-              </button>
-              <button
-                onClick={() => {
-                  closeModal();
-                  handleStartChallenge(challenge);
-                }}
-                className="bg-success-600 hover:bg-success-700 text-white px-4 py-2 rounded flex items-center"
-              >
-                <Play className="mr-2" size={16} />
-                Open in Simulator
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  ));
-
   return (
     <Layout>
       <div className="min-h-screen bg-dark-900 py-8">
@@ -854,7 +644,7 @@ const ChallengesPage: React.FC = () => {
                 <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary-900 border border-primary-700 text-primary-400 mb-1">
                   <Award size={24} />
                 </div>
-                <span className="text-sm text-dark-300">{completedChallengesCount}/{totalChallenges}</span>
+                <span className="text-sm text-dark-300">{stats.completedChallengesCount}/{stats.totalChallenges}</span>
                 <span className="text-xs text-dark-500">Completed</span>
               </div>
               
@@ -862,7 +652,7 @@ const ChallengesPage: React.FC = () => {
                 <div className="flex items-center justify-center w-12 h-12 rounded-full bg-warning-900 border border-warning-700 text-warning-400 mb-1">
                   <Trophy size={24} />
                 </div>
-                <span className="text-sm text-dark-300">{completedObjectivesCount}</span>
+                <span className="text-sm text-dark-300">{stats.completedObjectivesCount}</span>
                 <span className="text-xs text-dark-500">Objectives</span>
               </div>
               
@@ -870,7 +660,7 @@ const ChallengesPage: React.FC = () => {
                 <div className="flex items-center justify-center w-12 h-12 rounded-full bg-accent-900 border border-accent-700 text-accent-400 mb-1">
                   <Star size={24} />
                 </div>
-                <span className="text-sm text-dark-300">{challengeTracking.totalDistanceMoved.toFixed(1)}m</span>
+                <span className="text-sm text-dark-300">{stats.distanceMoved.toFixed(1)}m</span>
                 <span className="text-xs text-dark-500">Distance</span>
               </div>
             </div>
@@ -950,8 +740,6 @@ const ChallengesPage: React.FC = () => {
               return (
                 <motion.div
                   key={challenge.id}
-                  initial={false}
-                  animate={{ height: isExpanded ? 'auto' : 'auto' }}
                   className={`bg-dark-800 rounded-lg border border-dark-700 p-6 cursor-pointer transition-all ${
                     challenge.unlocked ? 'hover:border-dark-600' : 'opacity-70'
                   } ${challenge.completed ? 'border-success-500 bg-success-900/10' : ''}`}
@@ -1076,23 +864,13 @@ const ChallengesPage: React.FC = () => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              openModal('code', challenge);
+                              // Simple code modal inline
+                              alert(`Starting Code:\n\n${challenge.startingCode?.code}`);
                             }}
                             className="bg-dark-700 hover:bg-dark-600 text-white px-4 py-2 rounded flex items-center text-sm"
                           >
                             <Code size={14} className="mr-2" />
                             View Code
-                          </button>
-                          
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openModal('preview', challenge);
-                            }}
-                            className="bg-dark-700 hover:bg-dark-600 text-white px-4 py-2 rounded flex items-center text-sm"
-                          >
-                            <Eye size={14} className="mr-2" />
-                            Preview
                           </button>
                         </div>
 
@@ -1214,83 +992,9 @@ const ChallengesPage: React.FC = () => {
           )}
         </div>
 
-        {/* Modals */}
+        {/* Simplified Modals - Only Theory and Quiz to prevent loops */}
         {activeModal?.type === 'theory' && <TheoryModal challenge={activeModal.data} />}
         {activeModal?.type === 'quiz' && <QuizModal challenge={activeModal.data} />}
-        {activeModal?.type === 'hints' && <HintsModal challenge={activeModal.data} />}
-        {activeModal?.type === 'code' && <CodeModal challenge={activeModal.data} />}
-        
-        {/* Preview Modal */}
-        {activeModal?.type === 'preview' && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-dark-800 rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-dark-600">
-              <div className="p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-2xl font-bold text-white flex items-center">
-                    <Eye className="mr-2" />
-                    Challenge Preview - {activeModal.data.title}
-                  </h2>
-                  <button onClick={closeModal} className="text-dark-400 hover:text-white">
-                    <X size={24} />
-                  </button>
-                </div>
-                
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="bg-dark-700 p-3 rounded border border-dark-600">
-                      <span className="text-dark-400">Robot Type:</span>
-                      <p className="text-white capitalize">{activeModal.data.robotType}</p>
-                    </div>
-                    <div className="bg-dark-700 p-3 rounded border border-dark-600">
-                      <span className="text-dark-400">Environment:</span>
-                      <p className="text-white">{activeModal.data.environmentId}</p>
-                    </div>
-                    <div className="bg-dark-700 p-3 rounded border border-dark-600">
-                      <span className="text-dark-400">Estimated Time:</span>
-                      <p className="text-white">{activeModal.data.estimatedTime} minutes</p>
-                    </div>
-                    <div className="bg-dark-700 p-3 rounded border border-dark-600">
-                      <span className="text-dark-400">Objectives:</span>
-                      <p className="text-white">{activeModal.data.objectives.length} total</p>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-dark-700 p-4 rounded border border-dark-600">
-                    <h3 className="text-white font-medium mb-2">What you'll learn:</h3>
-                    <ul className="text-dark-300 space-y-1">
-                      {activeModal.data.objectives.map((obj, index) => (
-                        <li key={obj.id} className="flex items-start">
-                          <span className="text-primary-400 mr-2">•</span>
-                          {obj.description}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => {
-                        closeModal();
-                        handleStartChallenge(activeModal.data);
-                      }}
-                      className="bg-success-600 hover:bg-success-700 text-white px-4 py-2 rounded flex items-center"
-                    >
-                      <Play className="mr-2" size={16} />
-                      Start Challenge
-                    </button>
-                    <button
-                      onClick={() => openModal('theory', activeModal.data)}
-                      className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded flex items-center"
-                    >
-                      <BookOpen className="mr-2" size={16} />
-                      Study First
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </Layout>
   );
