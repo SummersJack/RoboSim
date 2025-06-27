@@ -209,107 +209,186 @@ Each sensor type has specific uses and limitations.`,
     environmentId: 'sensor-course',
     unlocked: true,
     completed: false,
-    nextChallengeIds: ['warehouse-1'],
+    nextChallengeIds: ['patrol-1'],
   },
   {
-    id: 'warehouse-1',
-    title: 'Warehouse Navigation',
-    description: 'Learn to navigate a robot through a warehouse environment while avoiding obstacles.',
-    category: ChallengeCategory.WAREHOUSE,
-    difficulty: DifficultyLevel.INTERMEDIATE,
-    estimatedTime: 25,
-    objectives: [
-      {
-        id: 'obj6',
-        description: 'Study path planning strategies',
-        completionCriteria: 'theory_complete',
-        completed: false,
-        theory: `Path planning involves:
-1. Identifying the goal location
-2. Detecting obstacles
-3. Finding an efficient route
-4. Maintaining safe distances
-
-We'll use sensors and algorithms to navigate safely.`
-      },
-      {
-        id: 'obj7',
-        description: 'Navigate to the pickup area',
-        completionCriteria: 'reached_pickup',
-        completed: false,
-        hints: [
-          'Use the map to identify the pickup area',
-          'Keep track of your position',
-          'Use sensors to avoid obstacles'
-        ]
-      },
-      {
-        id: 'obj8',
-        description: 'Pick up the package',
-        completionCriteria: 'package_grabbed',
-        completed: false,
-        hints: [
-          'Position the robot correctly',
-          'Use the grab() command',
-          'Verify successful pickup'
-        ]
-      }
-    ],
-    hints: [
-      { id: 'hint5', text: 'Break down the navigation into smaller steps', unlockCost: 10 },
-      { id: 'hint6', text: 'Use markers or waypoints for complex paths', unlockCost: 15 },
-    ],
-    startingCode: {
-      natural_language: 'Navigate to the pickup area, avoiding obstacles, and grab the package',
-      block: '[]',
-      code: `// Welcome to warehouse navigation!
-// This challenge combines movement and sensor usage
-
-// First, let's plan our path
-// The pickup area is at coordinates (5, 0, 8)
-
-// We'll need to:
-// 1. Navigate around obstacles
-// 2. Reach the pickup area
-// 3. Grab the package
-
-// Add your code here`
+  id: 'patrol-1',
+  title: 'Security Patrol Route',
+  description: 'Program the robot to follow a patrol route with multiple waypoints and turns.',
+  category: ChallengeCategory.INTRO,
+  difficulty: DifficultyLevel.INTERMEDIATE,
+  estimatedTime: 20,
+  objectives: [
+    {
+      id: 'obj1',
+      description: 'Understand waypoint navigation',
+      completionCriteria: 'theory_complete',
+      completed: false,
+      theory: `
+        Waypoint navigation involves:
+        - Planning a route with multiple stops
+        - Precise turning between waypoints
+        - Maintaining consistent speed
+        - Position verification at each point
+      `
     },
-    theory: {
-      sections: [
-        {
-          title: 'Warehouse Navigation Basics',
-          content: `Warehouse robots need to:
-- Follow efficient paths
-- Avoid collisions
-- Handle dynamic obstacles
-- Maintain precise positioning
-
-This requires combining multiple skills and sensors.`,
-          video: 'https://example.com/warehouse-navigation',
-        }
-      ],
-      quiz: [
-        {
-          question: 'What should you do when detecting an obstacle?',
-          options: [
-            'Ignore it and continue',
-            'Stop and wait',
-            'Find an alternative path',
-            'Reverse direction'
-          ],
-          correctAnswer: 'Find an alternative path',
-          explanation: 'When an obstacle is detected, the robot should plan and follow an alternative path to reach its goal.'
-        }
+    {
+      id: 'obj2',
+      description: 'Visit all 4 patrol waypoints in sequence',
+      completionCriteria: 'waypoints_completed',
+      completed: false,
+      hints: [
+        'Move to (3, 0), then (3, 3), then (0, 3), then back to (0, 0)',
+        'Make precise 90-degree turns at each corner',
+        'Verify position at each waypoint'
       ]
-    },
-    robotType: 'mobile',
-    environmentId: 'warehouse',
-    unlocked: false,
-    completed: false,
-    nextChallengeIds: ['warehouse-2'],
-  }
+    }
+  ],
+  startingCode: {
+    natural_language: 'Follow a square patrol route visiting 4 waypoints',
+    block: '[]',
+    code: `// Security Patrol Mission
+const waypoints = [
+  {x: 3, z: 0}, {x: 3, z: 3}, {x: 0, z: 3}, {x: 0, z: 0}
 ];
+// Add your patrol logic here`
+  },
+  robotType: 'mobile',
+  environmentId: 'warehouse',
+  unlocked: false,
+  completed: false,
+  nextChallengeIds: ['circle-1'],
+},
+{
+  id: 'circle-1',
+  title: 'Perfect Circle',
+  description: 'Master curved movement by making the robot travel in a perfect circle.',
+  category: ChallengeCategory.INTRO,
+  difficulty: DifficultyLevel.INTERMEDIATE,
+  estimatedTime: 25,
+  objectives: [
+    {
+      id: 'obj1',
+      description: 'Understand circular motion mechanics',
+      completionCriteria: 'theory_complete',
+      completed: false,
+      theory: `
+        Circular movement requires:
+        - Continuous small turns while moving forward
+        - Consistent speed and turn rate
+        - Radius control through turn/speed ratio
+      `
+    },
+    {
+      id: 'obj2',
+      description: 'Complete one full circle with 2m radius',
+      completionCriteria: 'circle_completed',
+      completed: false,
+      hints: [
+        'Use small, frequent turns while moving forward',
+        'Keep the turn rate consistent'
+      ]
+    }
+  ],
+  startingCode: {
+    natural_language: 'Move in a perfect circle',
+    block: '[]',
+    code: `// Circle motion: small forward + small turn = circular path
+for (let i = 0; i < 360; i += 5) {
+  // Move forward small amount + turn right 5 degrees
+}`
+  },
+  robotType: 'mobile',
+  environmentId: 'warehouse',
+  unlocked: false,
+  completed: false,
+  nextChallengeIds: ['grid-1'],
+},
+{
+  id: 'grid-1',
+  title: 'Grid Navigation Master',
+  description: 'Navigate efficiently through a grid system using coordinate-based movement.',
+  category: ChallengeCategory.INTRO,
+  difficulty: DifficultyLevel.INTERMEDIATE,
+  estimatedTime: 20,
+  objectives: [
+    {
+      id: 'obj1',
+      description: 'Understand grid coordinate systems',
+      completionCriteria: 'theory_complete',
+      completed: false,
+      theory: `
+        Grid navigation involves:
+        - Understanding X,Z coordinate system
+        - Moving in cardinal directions (N,S,E,W)
+        - Calculating optimal paths
+      `
+    },
+    {
+      id: 'obj2',
+      description: 'Visit 5 specific grid points in sequence',
+      completionCriteria: 'grid_points_visited',
+      completed: false,
+      hints: [
+        'Points: (2,2) -> (6,2) -> (6,6) -> (2,6) -> (4,4)',
+        'Move in straight lines between points'
+      ]
+    }
+  ],
+  startingCode: {
+    natural_language: 'Navigate through specific grid points',
+    block: '[]',
+    code: `// Visit: (2,2) -> (6,2) -> (6,6) -> (2,6) -> (4,4)
+const gridPoints = [{x: 2, z: 2}, {x: 6, z: 2}, {x: 6, z: 6}, {x: 2, z: 6}, {x: 4, z: 4}];`
+  },
+  robotType: 'mobile',
+  environmentId: 'warehouse',
+  unlocked: false,
+  completed: false,
+  nextChallengeIds: ['spiral-1'],
+},
+{
+  id: 'spiral-1',
+  title: 'Spiral Search Pattern',
+  description: 'Program the robot to move in an expanding spiral pattern.',
+  category: ChallengeCategory.SEARCH_RESCUE,
+  difficulty: DifficultyLevel.ADVANCED,
+  estimatedTime: 25,
+  objectives: [
+    {
+      id: 'obj1',
+      description: 'Understand spiral movement algorithms',
+      completionCriteria: 'theory_complete',
+      completed: false,
+      theory: `
+        Spiral patterns: 1 step, turn, 1 step, turn, 2 steps, turn, 2 steps, turn, 3 steps...
+      `
+    },
+    {
+      id: 'obj2',
+      description: 'Execute a 5-layer expanding spiral',
+      completionCriteria: 'spiral_completed',
+      completed: false,
+      hints: [
+        'Pattern: Right 1, Up 1, Left 2, Down 2, Right 3...',
+        'Increase step count every 2 direction changes'
+      ]
+    }
+  ],
+  startingCode: {
+    natural_language: 'Create an expanding spiral pattern',
+    block: '[]',
+    code: `// Spiral: 1,1,2,2,3,3,4,4,5,5
+const directions = ['right', 'up', 'left', 'down'];`
+  },
+  robotType: 'mobile',
+  environmentId: 'warehouse',
+  unlocked: false,
+  completed: false,
+  nextChallengeIds: ['drone-1'],
+}
+  };
+
 
 const ChallengeList: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<ChallengeCategory | 'all'>('all');
