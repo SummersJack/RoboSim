@@ -193,7 +193,7 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
     tasksCompleted: 0,
     batteryUsed: 0,
   },
-  challengeTracking: { ...INITIAL_CHALLENGE_TRACKING },
+  challengeTracking: state.challengeTracking,
   moveCommands: null,
 
   selectRobot: (config) => {
