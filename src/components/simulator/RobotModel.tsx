@@ -11,20 +11,29 @@ interface RobotModelProps {
 
 const RobotModel: React.FC<RobotModelProps> = ({ robotConfig }) => {
   const modelRef = useRef<THREE.Group>(null);
-
-  // Drone specific refs
-  const propellersRef = useRef<THREE.Group[]>([]);
-  const droneAltitude = useRef(0.5);
-
-  // General movement refs
-  const lastPositionRef = useRef(new THREE.Vector3());
-  const prevPositionRef = useRef(new THREE.Vector3());
+  const prevPositionRef = useRef(new THREE.Vector3(0, 0, 0));
+  const lastPositionRef = useRef(new THREE.Vector3(0, 0, 0));
   const movementThresholdRef = useRef(0);
+  
+  const velocityRef = useRef(new THREE.Vector3(0, 0, 0));
+  const accelerationRef = useRef(new THREE.Vector3(0, 0, 0));
   const angularVelocityRef = useRef(0);
+  const lastUpdateTimeRef = useRef(Date.now());
+  const targetVelocityRef = useRef(new THREE.Vector3(0, 0, 0));
+  const targetAngularVelocityRef = useRef(0);
+
+  // Drone-specific refs
+  const propellersRef = useRef<THREE.Group[]>([]);
+  const droneAltitude = useRef(0);
 
   const { robotState, isMoving: storeIsMoving, moveCommands } = useRobotStore();
   const [isMoving, setIsMoving] = useState(false);
   const [currentAction, setCurrentAction] = useState<string | null>(null);
+
+  const humanoidGLTF = useGLTF('/models/humanoid-robot/rusty_robot_walking_animated.glb');
+  const spiderGLTF = useGLTF('/models/spider-model/source/spider_bot.glb');
+  const tankGLTF = useGLTF('/models/tank-model/t-35_heavy_five-turret_tank.glb');
+  const explorerGLTF = useGLTF('/models/explorer-bot/360_sphere_robot_no_glass.glb');
 
   const isSpider = robotConfig.type === 'spider';
   const isTank = robotConfig.type === 'tank';
@@ -231,11 +240,6 @@ const RobotModel: React.FC<RobotModelProps> = ({ robotConfig }) => {
       </mesh>
     </>
   );
-
-  const humanoidGLTF = useGLTF('/models/humanoid-robot/rusty_robot_walking_animated.glb');
-  const spiderGLTF = useGLTF('/models/spider-model/source/spider_bot.glb');
-  const tankGLTF = useGLTF('/models/tank-model/t-35_heavy_five-turret_tank.glb');
-  const explorerGLTF = useGLTF('/models/explorer-bot/360_sphere_robot_no_glass.glb');
 
   const activeGLTF = robotConfig.type === 'explorer' || robotConfig.type === 'mobile'
     ? explorerGLTF
@@ -478,7 +482,6 @@ const RobotModel: React.FC<RobotModelProps> = ({ robotConfig }) => {
     
     // Apply the explorer float height offset to the target position
     if (isExplorer) {
-      const explorerFloatHeight = 0.5;
       targetPos.y += explorerFloatHeight;
     }
     
@@ -613,7 +616,7 @@ const RobotModel: React.FC<RobotModelProps> = ({ robotConfig }) => {
   const explorerScale = Math.min(2.5, 5);
   const explorerFloatHeight = isExplorer ? 0.5 : 0;
 
-  // Render drone procedurally
+  // Render drone procedurally or GLTF models
   if (isDrone) {
     return (
       <group ref={modelRef}>
