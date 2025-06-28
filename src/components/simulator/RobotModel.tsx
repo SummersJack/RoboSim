@@ -19,7 +19,7 @@ const ARM_JOINT_LIMITS = {
   gripper: { min: 0, max: 0.08 }
 };
 
-const RobotModel: React.FC<{ robotConfig: RobotConfig }> = ({ robotConfig }) => {
+const RobotModel: React.FC<RobotModelProps> = ({ robotConfig }) => {
   const modelRef = useRef<THREE.Group>(null);
   
   // Robotic arm specific refs
@@ -30,6 +30,16 @@ const RobotModel: React.FC<{ robotConfig: RobotConfig }> = ({ robotConfig }) => 
   const armWristRollRef = useRef<THREE.Group>(null);
   const armGripperLeftRef = useRef<THREE.Mesh>(null);
   const armGripperRightRef = useRef<THREE.Mesh>(null);
+
+  // Drone specific refs
+  const propellersRef = useRef<THREE.Group[]>([]);
+  const droneAltitude = useRef(0.5);
+
+  // General movement refs
+  const lastPositionRef = useRef(new THREE.Vector3());
+  const prevPositionRef = useRef(new THREE.Vector3());
+  const movementThresholdRef = useRef(0);
+  const angularVelocityRef = useRef(0);
 
   // Arm joint angles state
   const [armJointAngles, setArmJointAngles] = useState({
@@ -60,7 +70,34 @@ const RobotModel: React.FC<{ robotConfig: RobotConfig }> = ({ robotConfig }) => 
   });
 
   const { robotState, isMoving: storeIsMoving, moveCommands } = useRobotStore();
+  const [isMoving, setIsMoving] = useState(false);
+  const [currentAction, setCurrentAction] = useState<string | null>(null);
+
   const isArm = robotConfig.type === 'arm';
+  const isSpider = robotConfig.type === 'spider';
+  const isTank = robotConfig.type === 'tank';
+  const isExplorer = robotConfig.type === 'explorer' || robotConfig.type === 'mobile';
+  const isDrone = robotConfig.type === 'drone';
+
+  console.log('🔍 Robot type debug:', {
+    robotConfigType: robotConfig.type,
+    isExplorer,
+    isSpider,
+    isTank,
+    isDrone,
+    isArm
+  });
+
+  // Physics constants for drone
+  const PHYSICS = {
+    droneHoverAmplitude: 0.008,
+    droneHoverSpeed: 2.5,
+    propellerSpeedIdle: 15,
+    propellerSpeedActive: 30,
+    droneLiftAcceleration: 0.03,
+    droneMaxAltitude: 4.0,
+    droneMinAltitude: 0.15
+  };
 
   // Movement speeds for arm
   const ARM_MOVEMENT_SPEED = 0.03;
@@ -439,491 +476,6 @@ const RobotModel: React.FC<{ robotConfig: RobotConfig }> = ({ robotConfig }) => 
     );
   };
 
-  // Animation loop for smooth joint movement
-  useFrame((state, delta) => {
-    if (!isArm || !robotState) return;
-
-    const current = armCurrentAnglesRef.current;
-    const target = armTargetAnglesRef.current;
-    const lerpSpeed = 8 * delta; // Smooth interpolation speed
-
-    // Interpolate each joint towards its target
-    Object.keys(current).forEach(joint => {
-      const key = joint as keyof typeof current;
-      current[key] = THREE.MathUtils.lerp(current[key], target[key], lerpSpeed);
-    });
-
-    // Apply rotations to the actual 3D objects
-    if (armBaseRef.current) {
-      armBaseRef.current.rotation.y = current.base;
-    }
-    if (armShoulderRef.current) {
-      armShoulderRef.current.rotation.x = current.shoulder;
-    }
-    if (armElbowRef.current) {
-      armElbowRef.current.rotation.x = current.elbow;
-    }
-    if (armWristPitchRef.current) {
-      armWristPitchRef.current.rotation.x = current.wristPitch;
-    }
-    if (armWristRollRef.current) {
-      armWristRollRef.current.rotation.z = current.wristRoll;
-    }
-    
-    // Apply gripper positions (symmetric movement)
-    if (armGripperLeftRef.current && armGripperRightRef.current) {
-      armGripperLeftRef.current.position.x = -current.gripper;
-      armGripperRightRef.current.position.x = current.gripper;
-    }
-
-    // Keep base stationary (arm doesn't move around the scene)
-    if (modelRef.current) {
-      modelRef.current.position.set(0, 0, 0);
-      modelRef.current.rotation.set(0, 0, 0);
-    }
-  });
-
-  // Only render arm if it's the arm type
-  if (!isArm) return null;
-
-  return (
-    <group ref={modelRef}>
-      <RoboticArmGeometry />
-    </group>
-  );
-};
-
-
-
-  const { robotState, isMoving: storeIsMoving, moveCommands } = useRobotStore();
-  const [isMoving, setIsMoving] = useState(false);
-  const [currentAction, setCurrentAction] = useState<string | null>(null);
-
-  const humanoidGLTF = useGLTF('/models/humanoid-robot/rusty_robot_walking_animated.glb');
-  const spiderGLTF = useGLTF('/models/spider-model/source/spider_bot.glb');
-  const tankGLTF = useGLTF('/models/tank-model/t-35_heavy_five-turret_tank.glb');
-  const explorerGLTF = useGLTF('/models/explorer-bot/360_sphere_robot_no_glass.glb');
-
-  const isSpider = robotConfig.type === 'spider';
-  const isTank = robotConfig.type === 'tank';
-  const isExplorer = robotConfig.type === 'explorer' || robotConfig.type === 'mobile';
-  const isDrone = robotConfig.type === 'drone';
-  const isArm = robotConfig.type === 'arm';
-
-  console.log('🔍 Robot type debug:', {
-    robotConfigType: robotConfig.type,
-    isExplorer,
-    isSpider,
-    isTank,
-    isDrone,
-    isArm
-  });
-
-  // Physics constants for drone
-  const PHYSICS = {
-    droneHoverAmplitude: 0.008,
-    droneHoverSpeed: 2.5,
-    propellerSpeedIdle: 15,
-    propellerSpeedActive: 30,
-    droneLiftAcceleration: 0.03,
-    droneMaxAltitude: 4.0,
-    droneMinAltitude: 0.15
-  };
-
-  // Movement speeds for arm
-  const ARM_MOVEMENT_SPEED = 0.02;  // Slower for more precise control
-  const ARM_GRIPPER_SPEED = 0.002;  // Doubled for larger gripper
-
-  // Handle arm move commands - Fixed to work with robotStore
-  useEffect(() => {
-    if (!isArm || !moveCommands) return;
-
-    const { direction, joint } = moveCommands;
-    
-    // Map directions to delta values
-    let delta = 0;
-    if (direction === 'forward' || direction === 'up' || direction === 'right') {
-      delta = 1;
-    } else if (direction === 'backward' || direction === 'down' || direction === 'left') {
-      delta = -1;
-    }
-    
-    const newTarget = { ...armTargetAnglesRef.current };
-    
-    // Handle joint movements
-    if (joint) {
-      switch (joint) {
-        case 'base':
-          newTarget.base = THREE.MathUtils.clamp(
-            newTarget.base + delta * ARM_MOVEMENT_SPEED,
-            ARM_JOINT_LIMITS.base.min,
-            ARM_JOINT_LIMITS.base.max
-          );
-          break;
-        case 'shoulder':
-          newTarget.shoulder = THREE.MathUtils.clamp(
-            newTarget.shoulder + delta * ARM_MOVEMENT_SPEED,
-            ARM_JOINT_LIMITS.shoulder.min,
-            ARM_JOINT_LIMITS.shoulder.max
-          );
-          break;
-        case 'elbow':
-          newTarget.elbow = THREE.MathUtils.clamp(
-            newTarget.elbow + delta * ARM_MOVEMENT_SPEED,
-            ARM_JOINT_LIMITS.elbow.min,
-            ARM_JOINT_LIMITS.elbow.max
-          );
-          break;
-        case 'wrist':
-          // Use left/right for wrist roll, forward/backward for wrist pitch
-          if (direction === 'left' || direction === 'right') {
-            const rollDelta = direction === 'left' ? -1 : 1;
-            newTarget.wristRoll = THREE.MathUtils.clamp(
-              newTarget.wristRoll + rollDelta * ARM_MOVEMENT_SPEED,
-              ARM_JOINT_LIMITS.wristRoll.min,
-              ARM_JOINT_LIMITS.wristRoll.max
-            );
-          } else {
-            newTarget.wristPitch = THREE.MathUtils.clamp(
-              newTarget.wristPitch + delta * ARM_MOVEMENT_SPEED,
-              ARM_JOINT_LIMITS.wristPitch.min,
-              ARM_JOINT_LIMITS.wristPitch.max
-            );
-          }
-          break;
-      }
-    } else {
-      // If no joint specified, control gripper with forward/backward
-      if (direction === 'forward') {
-        newTarget.gripper = THREE.MathUtils.clamp(
-          newTarget.gripper + ARM_GRIPPER_SPEED,
-          ARM_JOINT_LIMITS.gripper.min,
-          ARM_JOINT_LIMITS.gripper.max
-        );
-      } else if (direction === 'backward') {
-        newTarget.gripper = THREE.MathUtils.clamp(
-          newTarget.gripper - ARM_GRIPPER_SPEED,
-          ARM_JOINT_LIMITS.gripper.min,
-          ARM_JOINT_LIMITS.gripper.max
-        );
-      }
-    }
-    
-    armTargetAnglesRef.current = newTarget;
-  }, [moveCommands, isArm]);
-
-  // Robotic Arm Geometry Component - Industrial Scale
-  const RoboticArmGeometry = () => {
-    // Material definitions - Industrial colors
-    const baseMaterial = <meshStandardMaterial color="#1a1a1a" metalness={0.9} roughness={0.1} />;
-    const jointMaterial = <meshStandardMaterial color="#ff6b00" metalness={0.8} roughness={0.2} />;
-    const armMaterial = <meshStandardMaterial color="#e8e8e8" metalness={0.7} roughness={0.2} />;
-    const gripperMaterial = <meshStandardMaterial color="#4a4a4a" metalness={0.8} roughness={0.3} />;
-    const accentMaterial = <meshStandardMaterial color="#0066ff" metalness={0.9} roughness={0.1} emissive="#0066ff" emissiveIntensity={0.2} />;
-    const warningMaterial = <meshStandardMaterial color="#ffcc00" metalness={0.6} roughness={0.4} emissive="#ffcc00" emissiveIntensity={0.3} />;
-
-    return (
-      <>
-        {/* Industrial Base Platform - Much larger */}
-        <mesh castShadow receiveShadow>
-          <cylinderGeometry args={[0.4, 0.5, 0.12, 32]} />
-          {baseMaterial}
-        </mesh>
-        
-        {/* Base warning stripes */}
-        {[0, 45, 90, 135, 180, 225, 270, 315].map((angle, i) => (
-          <mesh key={i} castShadow position={[
-            Math.cos(angle * Math.PI / 180) * 0.45,
-            0.061,
-            Math.sin(angle * Math.PI / 180) * 0.45
-          ]}>
-            <boxGeometry args={[0.05, 0.002, 0.08]} />
-            {warningMaterial}
-          </mesh>
-        ))}
-        
-        {/* Base Joint Housing - Industrial scale */}
-        <mesh castShadow receiveShadow position={[0, 0.15, 0]}>
-          <cylinderGeometry args={[0.25, 0.3, 0.18, 32]} />
-          {jointMaterial}
-        </mesh>
-
-        {/* Cable management ring */}
-        <mesh castShadow position={[0, 0.28, 0]}>
-          <torusGeometry args={[0.28, 0.015, 16, 32]} />
-          {baseMaterial}
-        </mesh>
-
-        {/* Rotating Base */}
-        <group ref={armBaseRef} position={[0, 0.3, 0]}>
-          {/* Base Connector - Industrial size */}
-          <mesh castShadow receiveShadow>
-            <boxGeometry args={[0.18, 0.15, 0.18]} />
-            {armMaterial}
-          </mesh>
-
-          {/* Base joint details */}
-          <mesh castShadow position={[0, 0.08, 0]}>
-            <cylinderGeometry args={[0.12, 0.12, 0.03, 32]} />
-            {jointMaterial}
-          </mesh>
-
-          {/* Shoulder Joint */}
-          <group ref={armShoulderRef} position={[0, 0.075, 0]}>
-            {/* Shoulder Motor Housing - Large industrial motor */}
-            <mesh castShadow receiveShadow rotation={[0, 0, Math.PI / 2]}>
-              <cylinderGeometry args={[0.1, 0.1, 0.22, 32]} />
-              {jointMaterial}
-            </mesh>
-            
-            {/* Motor ventilation fins */}
-            {[...Array(12)].map((_, i) => {
-              const angle = (i * Math.PI * 2) / 12;
-              return (
-                <mesh key={i} castShadow position={[
-                  Math.cos(angle) * 0.11,
-                  0,
-                  Math.sin(angle) * 0.11
-                ]} rotation={[0, angle, 0]}>
-                  <boxGeometry args={[0.02, 0.18, 0.003]} />
-                  {baseMaterial}
-                </mesh>
-              );
-            })}
-            
-            {/* Upper Arm - Thick industrial beam */}
-            <mesh castShadow receiveShadow position={[0, 0.35, 0]}>
-              <boxGeometry args={[0.12, 0.7, 0.12]} />
-              {armMaterial}
-            </mesh>
-            
-            {/* Structural reinforcement ribs */}
-            <mesh castShadow position={[0.061, 0.35, 0]}>
-              <boxGeometry args={[0.003, 0.65, 0.1]} />
-              {accentMaterial}
-            </mesh>
-            <mesh castShadow position={[-0.061, 0.35, 0]}>
-              <boxGeometry args={[0.003, 0.65, 0.1]} />
-              {accentMaterial}
-            </mesh>
-            
-            {/* Upper Arm Logo/Branding area */}
-            <mesh castShadow position={[0, 0.25, 0.061]}>
-              <boxGeometry args={[0.08, 0.04, 0.001]} />
-              {accentMaterial}
-            </mesh>
-            <mesh castShadow position={[0, 0.45, 0.061]}>
-              <boxGeometry args={[0.08, 0.04, 0.001]} />
-              {accentMaterial}
-            </mesh>
-
-            {/* Elbow Joint */}
-            <group ref={armElbowRef} position={[0, 0.7, 0]}>
-              {/* Elbow Motor - Heavy duty */}
-              <mesh castShadow receiveShadow rotation={[0, 0, Math.PI / 2]}>
-                <cylinderGeometry args={[0.08, 0.08, 0.18, 32]} />
-                {jointMaterial}
-              </mesh>
-              
-              {/* Elbow joint protection cover */}
-              <mesh castShadow rotation={[0, 0, Math.PI / 2]}>
-                <torusGeometry args={[0.09, 0.02, 16, 32]} />
-                {baseMaterial}
-              </mesh>
-              
-              {/* Forearm - Industrial scale */}
-              <mesh castShadow receiveShadow position={[0, 0.3, 0]}>
-                <boxGeometry args={[0.1, 0.6, 0.1]} />
-                {armMaterial}
-              </mesh>
-              
-              {/* Forearm cable guides */}
-              {[0.15, 0.3, 0.45].map((y, i) => (
-                <mesh key={i} castShadow position={[0, y, 0.051]}>
-                  <boxGeometry args={[0.06, 0.025, 0.002]} />
-                  {baseMaterial}
-                </mesh>
-              ))}
-              
-              {/* Pneumatic/hydraulic lines visual */}
-              <mesh castShadow position={[0.04, 0.3, 0.04]}>
-                <cylinderGeometry args={[0.008, 0.008, 0.55, 16]} />
-                <meshStandardMaterial color="#333333" metalness={0.7} roughness={0.3} />
-              </mesh>
-              <mesh castShadow position={[-0.04, 0.3, 0.04]}>
-                <cylinderGeometry args={[0.008, 0.008, 0.55, 16]} />
-                <meshStandardMaterial color="#333333" metalness={0.7} roughness={0.3} />
-              </mesh>
-
-              {/* Wrist Assembly */}
-              <group position={[0, 0.6, 0]}>
-                {/* Wrist Pitch Joint */}
-                <group ref={armWristPitchRef}>
-                  <mesh castShadow receiveShadow rotation={[0, 0, Math.PI / 2]}>
-                    <cylinderGeometry args={[0.06, 0.06, 0.14, 32]} />
-                    {jointMaterial}
-                  </mesh>
-                  
-                  {/* Wrist joint encoder disk visual */}
-                  <mesh castShadow position={[0.071, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-                    <cylinderGeometry args={[0.05, 0.05, 0.002, 32]} />
-                    <meshStandardMaterial color="#00ff00" metalness={0.9} roughness={0.1} emissive="#00ff00" emissiveIntensity={0.1} />
-                  </mesh>
-                  
-                  {/* Wrist Roll Joint */}
-                  <group ref={armWristRollRef} position={[0, 0.12, 0]}>
-                    <mesh castShadow receiveShadow>
-                      <cylinderGeometry args={[0.05, 0.05, 0.08, 32]} />
-                      {jointMaterial}
-                    </mesh>
-                    
-                    {/* Tool flange / End effector mount */}
-                    <mesh castShadow receiveShadow position={[0, 0.06, 0]}>
-                      <cylinderGeometry args={[0.08, 0.08, 0.03, 32]} />
-                      {baseMaterial}
-                    </mesh>
-                    
-                    {/* Mounting holes visual */}
-                    {[0, 90, 180, 270].map((angle, i) => (
-                      <mesh key={i} castShadow position={[
-                        Math.cos(angle * Math.PI / 180) * 0.06,
-                        0.075,
-                        Math.sin(angle * Math.PI / 180) * 0.06
-                      ]}>
-                        <cylinderGeometry args={[0.005, 0.005, 0.01, 16]} />
-                        <meshStandardMaterial color="#000000" metalness={0.9} roughness={0.1} />
-                      </mesh>
-                    ))}
-
-                    {/* Industrial Gripper Assembly */}
-                    <group position={[0, 0.09, 0]}>
-                      {/* Gripper Base - Robust design */}
-                      <mesh castShadow receiveShadow>
-                        <boxGeometry args={[0.12, 0.04, 0.08]} />
-                        {gripperMaterial}
-                      </mesh>
-                      
-                      {/* Gripper motor housing */}
-                      <mesh castShadow position={[0, 0.03, 0]}>
-                        <cylinderGeometry args={[0.03, 0.03, 0.04, 32]} />
-                        {jointMaterial}
-                      </mesh>
-                      
-                      {/* Left Gripper Finger - Industrial scale */}
-                      <group ref={armGripperLeftRef} position={[-0.08, 0.05, 0]}>
-                        {/* Main finger structure */}
-                        <mesh castShadow receiveShadow>
-                          <boxGeometry args={[0.025, 0.08, 0.04]} />
-                          {gripperMaterial}
-                        </mesh>
-                        {/* Finger tip */}
-                        <mesh castShadow position={[0, 0.04, 0]}>
-                          <boxGeometry args={[0.02, 0.015, 0.035]} />
-                          {baseMaterial}
-                        </mesh>
-                        {/* Gripper rubber pad */}
-                        <mesh castShadow position={[0.013, 0.03, 0]}>
-                          <boxGeometry args={[0.003, 0.05, 0.03]} />
-                          <meshStandardMaterial color="#ff0000" roughness={0.9} />
-                        </mesh>
-                      </group>
-                      
-                      {/* Right Gripper Finger - Industrial scale */}
-                      <group ref={armGripperRightRef} position={[0.08, 0.05, 0]}>
-                        {/* Main finger structure */}
-                        <mesh castShadow receiveShadow>
-                          <boxGeometry args={[0.025, 0.08, 0.04]} />
-                          {gripperMaterial}
-                        </mesh>
-                        {/* Finger tip */}
-                        <mesh castShadow position={[0, 0.04, 0]}>
-                          <boxGeometry args={[0.02, 0.015, 0.035]} />
-                          {baseMaterial}
-                        </mesh>
-                        {/* Gripper rubber pad */}
-                        <mesh castShadow position={[-0.013, 0.03, 0]}>
-                          <boxGeometry args={[0.003, 0.05, 0.03]} />
-                          <meshStandardMaterial color="#ff0000" roughness={0.9} />
-                        </mesh>
-                      </group>
-                      
-                      {/* Force sensor indicator */}
-                      <mesh castShadow position={[0, 0.025, 0.041]}>
-                        <cylinderGeometry args={[0.01, 0.01, 0.003, 16]} />
-                        <meshStandardMaterial 
-                          color="#00ff00" 
-                          emissive="#00ff00" 
-                          emissiveIntensity={robotState?.isGrabbing ? 0.8 : 0.2} 
-                        />
-                      </mesh>
-                    </group>
-
-                    {/* Tool Center Point Light - Brighter work light */}
-                    <pointLight
-                      color="#ffffff"
-                      intensity={2}
-                      distance={1}
-                      position={[0, 0.15, 0]}
-                    />
-                    
-                    {/* Work area spot light */}
-                    <spotLight
-                      color="#ffffff"
-                      intensity={1}
-                      distance={2}
-                      angle={Math.PI / 6}
-                      penumbra={0.2}
-                      position={[0, 0.15, 0]}
-                      target-position={[0, 0.5, 0]}
-                    />
-                  </group>
-                </group>
-              </group>
-            </group>
-          </group>
-        </group>
-
-        {/* Control Panel on Base */}
-        <mesh castShadow position={[0.35, 0.08, 0]}>
-          <boxGeometry args={[0.1, 0.06, 0.02]} />
-          {baseMaterial}
-        </mesh>
-        
-        {/* Status LEDs - Industrial indicators */}
-        <mesh castShadow position={[0.32, 0.08, 0.011]}>
-          <cylinderGeometry args={[0.008, 0.008, 0.002, 16]} />
-          <meshStandardMaterial 
-            color="#00ff00" 
-            emissive="#00ff00" 
-            emissiveIntensity={robotState?.isMoving ? 0.8 : 0.3} 
-          />
-        </mesh>
-        <mesh castShadow position={[0.35, 0.08, 0.011]}>
-          <cylinderGeometry args={[0.008, 0.008, 0.002, 16]} />
-          <meshStandardMaterial 
-            color="#ffcc00" 
-            emissive="#ffcc00" 
-            emissiveIntensity={0.5} 
-          />
-        </mesh>
-        <mesh castShadow position={[0.38, 0.08, 0.011]}>
-          <cylinderGeometry args={[0.008, 0.008, 0.002, 16]} />
-          <meshStandardMaterial 
-            color="#ff0000" 
-            emissive="#ff0000" 
-            emissiveIntensity={0.2} 
-          />
-        </mesh>
-        
-        {/* Emergency stop button */}
-        <mesh castShadow position={[0.35, 0.12, 0]}>
-          <cylinderGeometry args={[0.02, 0.02, 0.01, 32]} />
-          <meshStandardMaterial color="#ff0000" metalness={0.6} roughness={0.4} />
-        </mesh>
-      </>
-    );
-  };
-
   // Enhanced Drone with realistic aerodynamics
   const DroneGeometry = () => (
     <>
@@ -1105,6 +657,11 @@ const RobotModel: React.FC<{ robotConfig: RobotConfig }> = ({ robotConfig }) => 
       </mesh>
     </>
   );
+
+  const humanoidGLTF = useGLTF('/models/humanoid-robot/rusty_robot_walking_animated.glb');
+  const spiderGLTF = useGLTF('/models/spider-model/source/spider_bot.glb');
+  const tankGLTF = useGLTF('/models/tank-model/t-35_heavy_five-turret_tank.glb');
+  const explorerGLTF = useGLTF('/models/explorer-bot/360_sphere_robot_no_glass.glb');
 
   const activeGLTF = robotConfig.type === 'explorer' || robotConfig.type === 'mobile'
     ? explorerGLTF
@@ -1337,6 +894,7 @@ const RobotModel: React.FC<{ robotConfig: RobotConfig }> = ({ robotConfig }) => 
     };
   }, [actions, isDrone, isArm]);
 
+  // Animation loop for smooth joint movement
   useFrame((state, delta) => {
     if (!robotState || !modelRef.current) return;
 
@@ -1355,6 +913,7 @@ const RobotModel: React.FC<{ robotConfig: RobotConfig }> = ({ robotConfig }) => 
     
     // Apply the explorer float height offset to the target position
     if (isExplorer) {
+      const explorerFloatHeight = 0.5;
       targetPos.y += explorerFloatHeight;
     }
     
@@ -1362,21 +921,15 @@ const RobotModel: React.FC<{ robotConfig: RobotConfig }> = ({ robotConfig }) => 
     if (isArm) {
       const current = armCurrentAnglesRef.current;
       const target = armTargetAnglesRef.current;
-      const lerpSpeed = 5 * delta;
+      const lerpSpeed = 8 * delta; // Smooth interpolation speed
 
-      // Handle grab/release for gripper
-      if (robotState.isGrabbing && target.gripper > 0.015) {
-        target.gripper = 0.015; // Close gripper when grabbing (tighter for larger gripper)
-      } else if (!robotState.isGrabbing && target.gripper < 0.08) {
-        target.gripper = 0.08; // Open gripper when not grabbing (wider opening)
-      }
-
-      // Interpolate each joint
+      // Interpolate each joint towards its target
       Object.keys(current).forEach(joint => {
-        current[joint] = THREE.MathUtils.lerp(current[joint], target[joint], lerpSpeed);
+        const key = joint as keyof typeof current;
+        current[key] = THREE.MathUtils.lerp(current[key], target[key], lerpSpeed);
       });
 
-      // Apply rotations
+      // Apply rotations to the actual 3D objects
       if (armBaseRef.current) {
         armBaseRef.current.rotation.y = current.base;
       }
@@ -1392,12 +945,14 @@ const RobotModel: React.FC<{ robotConfig: RobotConfig }> = ({ robotConfig }) => 
       if (armWristRollRef.current) {
         armWristRollRef.current.rotation.z = current.wristRoll;
       }
+      
+      // Apply gripper positions (symmetric movement)
       if (armGripperLeftRef.current && armGripperRightRef.current) {
         armGripperLeftRef.current.position.x = -current.gripper;
         armGripperRightRef.current.position.x = current.gripper;
       }
 
-      // Apply position (arms are typically stationary but can be mounted on mobile platforms)
+      // Keep base stationary (arm doesn't move around the scene)
       modelRef.current.position.copy(targetPos);
       
       // Apply base rotation from robotState (for mobile mounted arms)
