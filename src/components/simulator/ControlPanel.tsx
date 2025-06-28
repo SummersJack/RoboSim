@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useRobotStore } from '@/store/robotStore';
-import { Notebook as Robot, Cpu, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Grab, Hand, Book, Zap, Target, Radar } from 'lucide-react';
+import { Notebook as Robot, Cpu, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Book, Zap, Target, Radar } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Challenge } from '@/types/challenge.types';
 
@@ -16,8 +16,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ challenge }) => {
     selectRobot, 
     moveRobot, 
     rotateRobot, 
-    grabObject, 
-    releaseObject,
     stopRobot,
     landDrone,
     startHover
@@ -27,7 +25,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ challenge }) => {
   const [activeSensorTab, setActiveSensorTab] = useState('camera');
   const [isPressed, setIsPressed] = useState<string | null>(null);
   const [isHovering, setIsHovering] = useState(false);
-  const [isBoosting, setIsBoosting] = useState(false);
   
   // Enhanced robot models with better descriptions and using the available spider model
   const availableRobots = [
@@ -90,70 +87,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ challenge }) => {
       startHover();
     } else {
       landDrone();
-    }
-  };
-
-  const handleDroneBoost = () => {
-    if (!selectedRobot || selectedRobot.type !== 'drone') return;
-    setIsBoosting(!isBoosting);
-    
-    if (!isBoosting) {
-      // Activate boost mode
-      moveRobot({ 
-        direction: 'forward',
-        speed: 1.0,
-        joint: 'boost'
-      });
-    } else {
-      // Deactivate boost mode
-      stopRobot();
-    }
-  };
-
-  // Special action handlers for different robot types
-  const handleSpecialAction1 = () => {
-    if (!selectedRobot) return;
-    
-    switch (selectedRobot.type) {
-      case 'spider':
-        console.log('Spider climbing action');
-        // Trigger climb animation
-        break;
-      case 'humanoid':
-        console.log('Humanoid waving action');
-        // Trigger wave gesture
-        break;
-      case 'tank':
-        console.log('Tank special weapon action');
-        break;
-      case 'drone':
-        handleDroneBoost();
-        break;
-      default:
-        console.log('Special action 1');
-    }
-  };
-
-  const handleSpecialAction2 = () => {
-    if (!selectedRobot) return;
-    
-    switch (selectedRobot.type) {
-      case 'spider':
-        console.log('Spider scanning action');
-        // Trigger scan animation
-        break;
-      case 'humanoid':
-        console.log('Humanoid gesture action');
-        // Trigger custom gesture
-        break;
-      case 'tank':
-        console.log('Tank defensive action');
-        break;
-      case 'drone':
-        handleDroneHover();
-        break;
-      default:
-        console.log('Special action 2');
     }
   };
 
@@ -257,7 +190,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ challenge }) => {
               </button>
             </div>
 
-            {/* Drone-specific controls */}
+            {/* Drone-specific hover control */}
             <div className="flex space-x-2 mb-4">
               <button 
                 className={`btn flex-1 flex items-center justify-center transition-colors ${
@@ -270,18 +203,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ challenge }) => {
               >
                 <Target size={18} className="mr-2" />
                 <span>Hover {isHovering ? 'Off' : 'On'}</span>
-              </button>
-              <button 
-                className={`btn flex-1 flex items-center justify-center transition-colors ${
-                  isBoosting 
-                    ? 'bg-secondary-600 hover:bg-secondary-700' 
-                    : 'bg-dark-700 hover:bg-dark-600'
-                } text-white py-2`}
-                onClick={handleDroneBoost}
-                disabled={!selectedRobot || !isHovering}
-              >
-                <Zap size={18} className="mr-2" />
-                <span>Boost {isBoosting ? 'Off' : 'On'}</span>
               </button>
             </div>
           </div>
@@ -371,60 +292,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ challenge }) => {
                 <ArrowRight size={20} />
               </button>
             </div>
-
-            {/* Special actions for specific robot types */}
-            {(selectedRobot.type === 'spider' || selectedRobot.type === 'humanoid' || selectedRobot.type === 'tank' || selectedRobot.type === 'drone') && (
-              <div className="flex space-x-2 mb-4">
-                <button 
-                  className="btn bg-accent-600 hover:bg-accent-700 text-white py-2 flex-1 flex items-center justify-center transition-colors"
-                  onClick={handleSpecialAction1}
-                  disabled={!selectedRobot}
-                >
-                  <Target size={18} className="mr-2" />
-                  <span>
-                    {selectedRobot.type === 'spider' ? 'Climb' : 
-                     selectedRobot.type === 'humanoid' ? 'Wave' :
-                     selectedRobot.type === 'tank' ? 'Weapon' :
-                     selectedRobot.type === 'drone' ? 'Boost' : 'Action 1'}
-                  </span>
-                </button>
-                <button 
-                  className="btn bg-secondary-600 hover:bg-secondary-700 text-white py-2 flex-1 flex items-center justify-center transition-colors"
-                  onClick={handleSpecialAction2}
-                  disabled={!selectedRobot}
-                >
-                  <Radar size={18} className="mr-2" />
-                  <span>
-                    {selectedRobot.type === 'spider' ? 'Scan' : 
-                     selectedRobot.type === 'humanoid' ? 'Gesture' :
-                     selectedRobot.type === 'tank' ? 'Shield' :
-                     selectedRobot.type === 'drone' ? 'Hover' : 'Action 2'}
-                  </span>
-                </button>
-              </div>
-            )}
-
-            {/* Grab/Release controls for non-drone robots */}
-            {selectedRobot.type !== 'drone' && (
-              <div className="flex space-x-2 mb-4">
-                <button 
-                  className="btn bg-success-600 hover:bg-success-700 text-white py-2 flex-1 flex items-center justify-center transition-colors"
-                  onClick={grabObject}
-                  disabled={!selectedRobot}
-                >
-                  <Grab size={18} className="mr-2" />
-                  <span>Grab</span>
-                </button>
-                <button 
-                  className="btn bg-warning-600 hover:bg-warning-700 text-white py-2 flex-1 flex items-center justify-center transition-colors"
-                  onClick={releaseObject}
-                  disabled={!selectedRobot}
-                >
-                  <Hand size={18} className="mr-2" />
-                  <span>Release</span>
-                </button>
-              </div>
-            )}
           </div>
         );
     }
@@ -531,11 +398,6 @@ const ControlPanel: React.FC<ControlPanelProps> = ({ challenge }) => {
                 <p className="text-dark-300">Status: <span className={`${isMoving ? 'text-accent-400' : 'text-white'}`}>
                   {isMoving ? 'Moving' : 'Idle'}
                 </span></p>
-                {robotState?.isGrabbing && (
-                  <p className="text-dark-300">Gripper: <span className="text-primary-400">
-                    Grabbing Object
-                  </span></p>
-                )}
               </div>
             </div>
             
