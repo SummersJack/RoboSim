@@ -480,27 +480,21 @@ const ChallengesPage: React.FC = () => {
     distanceMoved: challengeTracking.totalDistanceMoved
   }), [challengeTracking]);
 
-  // Fixed Theory Modal without infinite loop
+  // Fixed Theory Modal without infinite loop - removed local state and simplified useEffect
   const TheoryModal: React.FC<{ challenge: Challenge }> = React.memo(({ challenge }) => {
-    // Use a ref to track if theory has been marked as viewed for this modal instance
-    const [hasMarkedViewed, setHasMarkedViewed] = useState(false);
-    
     useEffect(() => {
-      // Only mark theory as viewed once per modal opening
-      if (!hasMarkedViewed) {
-        const theoryMap: Record<string, string> = {
-          'intro-1': 'movement_basics',
-          'intro-2': 'sensor_basics',
-          'warehouse-1': 'path_planning'
-        };
-        
-        const theoryId = theoryMap[challenge.id];
-        if (theoryId) {
-          markTheoryViewed(theoryId);
-          setHasMarkedViewed(true);
-        }
+      // Mark theory as viewed when modal opens - the store handles duplicate prevention
+      const theoryMap: Record<string, string> = {
+        'intro-1': 'movement_basics',
+        'intro-2': 'sensor_basics',
+        'warehouse-1': 'path_planning'
+      };
+      
+      const theoryId = theoryMap[challenge.id];
+      if (theoryId) {
+        markTheoryViewed(theoryId);
       }
-    }, [challenge.id, hasMarkedViewed]);
+    }, [challenge.id]); // Only depend on challenge.id
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
