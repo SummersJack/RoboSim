@@ -224,7 +224,6 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
         wrist: 0,
         altitude: config.type === 'drone' ? 0.5 : 0,
       },
-      challengeTracking: { ...INITIAL_CHALLENGE_TRACKING },
       moveCommands: null,
     });
   },
