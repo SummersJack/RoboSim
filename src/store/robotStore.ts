@@ -104,6 +104,18 @@ interface RobotStoreState {
   // New debug and utility methods
   triggerObjectiveCheck: () => void;
   getTrackingDebugInfo: () => any;
+  // Arm control methods
+  moveArmJoint: (joint: 'base' | 'shoulder' | 'elbow' | 'wrist', direction: 'positive' | 'negative') => void;
+  rotateBase: (direction: 'left' | 'right') => void;
+  moveShoulder: (direction: 'up' | 'down') => void;
+  moveElbow: (direction: 'extend' | 'retract') => void;
+  moveWrist: (direction: 'up' | 'down' | 'left' | 'right') => void;
+  openGripper: () => void;
+  closeGripper: () => void;
+  moveToHomePosition: () => void;
+  moveToPickPosition: () => void;
+  moveToPlacePosition: () => void;
+  getArmStatus: () => any;
 }
 
 const INITIAL_ROBOT_STATE = {
@@ -416,229 +428,6 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
       return;
     }
 
-    // Updated robot store methods for proper arm control
-// Add these methods to your useRobotStore
-
-// Enhanced arm control methods
-moveArmJoint: (joint: 'base' | 'shoulder' | 'elbow' | 'wrist', direction: 'positive' | 'negative') => {
-  const state = get();
-  if (!state.robotState || state.selectedRobot?.type !== 'arm') return;
-
-  console.log(`🦾 Moving arm joint: ${joint} ${direction}`);
-
-  // Map joint names to movement commands that the arm component will understand
-  let moveDirection: 'forward' | 'backward' | 'left' | 'right';
-  
-  switch (joint) {
-    case 'base':
-      moveDirection = direction === 'positive' ? 'right' : 'left';
-      break;
-    case 'shoulder':
-      moveDirection = direction === 'positive' ? 'forward' : 'backward';
-      break;
-    case 'elbow':
-      moveDirection = direction === 'positive' ? 'forward' : 'backward';
-      break;
-    case 'wrist':
-      moveDirection = direction === 'positive' ? 'forward' : 'backward';
-      break;
-  }
-
-  set({
-    isMoving: true,
-    moveCommands: { 
-      direction: moveDirection, 
-      speed: 0.5, 
-      joint: joint 
-    }
-  });
-
-  // Auto-stop after a short duration
-  setTimeout(() => {
-    get().stopRobot();
-  }, 200);
-},
-
-// Simplified arm control methods for easier use
-rotateBase: (direction: 'left' | 'right') => {
-  get().moveArmJoint('base', direction === 'right' ? 'positive' : 'negative');
-},
-
-moveShoulder: (direction: 'up' | 'down') => {
-  get().moveArmJoint('shoulder', direction === 'up' ? 'positive' : 'negative');
-},
-
-moveElbow: (direction: 'extend' | 'retract') => {
-  get().moveArmJoint('elbow', direction === 'extend' ? 'positive' : 'negative');
-},
-
-moveWrist: (direction: 'up' | 'down' | 'left' | 'right') => {
-  const state = get();
-  if (!state.robotState || state.selectedRobot?.type !== 'arm') return;
-
-  console.log(`🤲 Moving wrist: ${direction}`);
-
-  set({
-    isMoving: true,
-    moveCommands: { 
-      direction: direction as any, 
-      speed: 0.5, 
-      joint: 'wrist' 
-    }
-  });
-
-  setTimeout(() => {
-    get().stopRobot();
-  }, 200);
-},
-
-// Enhanced gripper control
-openGripper: () => {
-  const state = get();
-  if (!state.robotState || state.selectedRobot?.type !== 'arm') return;
-
-  console.log('👐 Opening gripper');
-
-  set({
-    isMoving: true,
-    moveCommands: { 
-      direction: 'forward', 
-      speed: 0.5 
-    }
-  });
-
-  setTimeout(() => {
-    get().stopRobot();
-  }, 300);
-},
-
-closeGripper: () => {
-  const state = get();
-  if (!state.robotState || state.selectedRobot?.type !== 'arm') return;
-
-  console.log('🤏 Closing gripper');
-
-  set({
-    isMoving: true,
-    moveCommands: { 
-      direction: 'backward', 
-      speed: 0.5 
-    }
-  });
-
-  setTimeout(() => {
-    get().stopRobot();
-  }, 300);
-},
-
-// Override grabObject for arms
-grabObject: () => {
-  const state = get();
-  if (!state.robotState) return;
-
-  if (state.selectedRobot?.type === 'arm') {
-    // For arms, grabbing means closing the gripper
-    get().closeGripper();
-  }
-
-  set((state) => {
-    const newTracking = { ...state.challengeTracking };
-    newTracking.hasGrabbed = true;
-
-    console.log('🤏 Object grabbed!');
-
-    return {
-      robotState: state.robotState ? {
-        ...state.robotState,
-        isGrabbing: true,
-      } : null,
-      challengeTracking: newTracking,
-    };
-  });
-  
-  setTimeout(() => get().checkAndCompleteObjectives(), 100);
-},
-
-// Override releaseObject for arms
-releaseObject: () => {
-  const state = get();
-  if (!state.robotState) return;
-
-  if (state.selectedRobot?.type === 'arm') {
-    // For arms, releasing means opening the gripper
-    get().openGripper();
-  }
-
-  set((state) => {
-    const newTracking = { ...state.challengeTracking };
-    newTracking.hasReleased = true;
-
-    console.log('👐 Object released!');
-
-    return {
-      robotState: state.robotState ? {
-        ...state.robotState,
-        isGrabbing: false,
-      } : null,
-      challengeTracking: newTracking,
-    };
-  });
-  
-  setTimeout(() => get().checkAndCompleteObjectives(), 100);
-},
-
-// Preset arm positions for convenience
-moveToHomePosition: () => {
-  const state = get();
-  if (!state.robotState || state.selectedRobot?.type !== 'arm') return;
-
-  console.log('🏠 Moving arm to home position');
-  
-  // This would set all joints to their home positions
-  // You can customize these values based on your needs
-  setTimeout(() => get().rotateBase('left'), 100);
-  setTimeout(() => get().moveShoulder('down'), 200);
-  setTimeout(() => get().moveElbow('retract'), 300);
-},
-
-moveToPickPosition: () => {
-  const state = get();
-  if (!state.robotState || state.selectedRobot?.type !== 'arm') return;
-
-  console.log('📦 Moving arm to pick position');
-  
-  // Sequence of movements to get into a good picking position
-  setTimeout(() => get().moveShoulder('up'), 100);
-  setTimeout(() => get().moveElbow('extend'), 200);
-  setTimeout(() => get().openGripper(), 300);
-},
-
-moveToPlacePosition: () => {
-  const state = get();
-  if (!state.robotState || state.selectedRobot?.type !== 'arm') return;
-
-  console.log('📋 Moving arm to place position');
-  
-  // Sequence of movements for placing objects
-  setTimeout(() => get().moveShoulder('down'), 100);
-  setTimeout(() => get().moveElbow('retract'), 200);
-},
-
-// Debug method to get current arm joint positions
-getArmStatus: () => {
-  const state = get();
-  if (!state.robotState || state.selectedRobot?.type !== 'arm') return null;
-
-  return {
-    base: state.jointPositions.base,
-    shoulder: state.jointPositions.shoulder,
-    elbow: state.jointPositions.elbow,
-    wrist: state.jointPositions.wrist,
-    isGrabbing: state.robotState.isGrabbing,
-    isMoving: state.isMoving
-  };
-}
-
     // Handle movement for explorer bot (sphere robot)
     if (state.selectedRobot?.type === 'explorer') {
       const moveStep = 0.12 * speed;
@@ -836,7 +625,127 @@ getArmStatus: () => {
     }));
   },
 
+  // Enhanced arm control methods
+  moveArmJoint: (joint: 'base' | 'shoulder' | 'elbow' | 'wrist', direction: 'positive' | 'negative') => {
+    const state = get();
+    if (!state.robotState || state.selectedRobot?.type !== 'arm') return;
+
+    console.log(`🦾 Moving arm joint: ${joint} ${direction}`);
+
+    // Map joint names to movement commands that the arm component will understand
+    let moveDirection: 'forward' | 'backward' | 'left' | 'right';
+    
+    switch (joint) {
+      case 'base':
+        moveDirection = direction === 'positive' ? 'right' : 'left';
+        break;
+      case 'shoulder':
+        moveDirection = direction === 'positive' ? 'forward' : 'backward';
+        break;
+      case 'elbow':
+        moveDirection = direction === 'positive' ? 'forward' : 'backward';
+        break;
+      case 'wrist':
+        moveDirection = direction === 'positive' ? 'forward' : 'backward';
+        break;
+    }
+
+    set({
+      isMoving: true,
+      moveCommands: { 
+        direction: moveDirection, 
+        speed: 0.5, 
+        joint: joint 
+      }
+    });
+
+    // Auto-stop after a short duration
+    setTimeout(() => {
+      get().stopRobot();
+    }, 200);
+  },
+
+  // Simplified arm control methods for easier use
+  rotateBase: (direction: 'left' | 'right') => {
+    get().moveArmJoint('base', direction === 'right' ? 'positive' : 'negative');
+  },
+
+  moveShoulder: (direction: 'up' | 'down') => {
+    get().moveArmJoint('shoulder', direction === 'up' ? 'positive' : 'negative');
+  },
+
+  moveElbow: (direction: 'extend' | 'retract') => {
+    get().moveArmJoint('elbow', direction === 'extend' ? 'positive' : 'negative');
+  },
+
+  moveWrist: (direction: 'up' | 'down' | 'left' | 'right') => {
+    const state = get();
+    if (!state.robotState || state.selectedRobot?.type !== 'arm') return;
+
+    console.log(`🤲 Moving wrist: ${direction}`);
+
+    set({
+      isMoving: true,
+      moveCommands: { 
+        direction: direction as any, 
+        speed: 0.5, 
+        joint: 'wrist' 
+      }
+    });
+
+    setTimeout(() => {
+      get().stopRobot();
+    }, 200);
+  },
+
+  // Enhanced gripper control
+  openGripper: () => {
+    const state = get();
+    if (!state.robotState || state.selectedRobot?.type !== 'arm') return;
+
+    console.log('👐 Opening gripper');
+
+    set({
+      isMoving: true,
+      moveCommands: { 
+        direction: 'forward', 
+        speed: 0.5 
+      }
+    });
+
+    setTimeout(() => {
+      get().stopRobot();
+    }, 300);
+  },
+
+  closeGripper: () => {
+    const state = get();
+    if (!state.robotState || state.selectedRobot?.type !== 'arm') return;
+
+    console.log('🤏 Closing gripper');
+
+    set({
+      isMoving: true,
+      moveCommands: { 
+        direction: 'backward', 
+        speed: 0.5 
+      }
+    });
+
+    setTimeout(() => {
+      get().stopRobot();
+    }, 300);
+  },
+
   grabObject: () => {
+    const state = get();
+    if (!state.robotState) return;
+
+    if (state.selectedRobot?.type === 'arm') {
+      // For arms, grabbing means closing the gripper
+      get().closeGripper();
+    }
+
     set((state) => {
       const newTracking = { ...state.challengeTracking };
       newTracking.hasGrabbed = true;
@@ -856,9 +765,19 @@ getArmStatus: () => {
   },
 
   releaseObject: () => {
+    const state = get();
+    if (!state.robotState) return;
+
+    if (state.selectedRobot?.type === 'arm') {
+      // For arms, releasing means opening the gripper
+      get().openGripper();
+    }
+
     set((state) => {
       const newTracking = { ...state.challengeTracking };
       newTracking.hasReleased = true;
+
+      console.log('👐 Object released!');
 
       return {
         robotState: state.robotState ? {
@@ -870,6 +789,58 @@ getArmStatus: () => {
     });
     
     setTimeout(() => get().checkAndCompleteObjectives(), 100);
+  },
+
+  // Preset arm positions for convenience
+  moveToHomePosition: () => {
+    const state = get();
+    if (!state.robotState || state.selectedRobot?.type !== 'arm') return;
+
+    console.log('🏠 Moving arm to home position');
+    
+    // This would set all joints to their home positions
+    // You can customize these values based on your needs
+    setTimeout(() => get().rotateBase('left'), 100);
+    setTimeout(() => get().moveShoulder('down'), 200);
+    setTimeout(() => get().moveElbow('retract'), 300);
+  },
+
+  moveToPickPosition: () => {
+    const state = get();
+    if (!state.robotState || state.selectedRobot?.type !== 'arm') return;
+
+    console.log('📦 Moving arm to pick position');
+    
+    // Sequence of movements to get into a good picking position
+    setTimeout(() => get().moveShoulder('up'), 100);
+    setTimeout(() => get().moveElbow('extend'), 200);
+    setTimeout(() => get().openGripper(), 300);
+  },
+
+  moveToPlacePosition: () => {
+    const state = get();
+    if (!state.robotState || state.selectedRobot?.type !== 'arm') return;
+
+    console.log('📋 Moving arm to place position');
+    
+    // Sequence of movements for placing objects
+    setTimeout(() => get().moveShoulder('down'), 100);
+    setTimeout(() => get().moveElbow('retract'), 200);
+  },
+
+  // Debug method to get current arm joint positions
+  getArmStatus: () => {
+    const state = get();
+    if (!state.robotState || state.selectedRobot?.type !== 'arm') return null;
+
+    return {
+      base: state.jointPositions.base,
+      shoulder: state.jointPositions.shoulder,
+      elbow: state.jointPositions.elbow,
+      wrist: state.jointPositions.wrist,
+      isGrabbing: state.robotState.isGrabbing,
+      isMoving: state.isMoving
+    };
   },
 
   readSensor: async (sensorType: string): Promise<number> => {
