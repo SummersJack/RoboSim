@@ -480,25 +480,27 @@ const ChallengesPage: React.FC = () => {
     distanceMoved: challengeTracking.totalDistanceMoved
   }), [challengeTracking]);
 
-  // Fixed Theory Modal - prevent infinite loop by checking if theory is already viewed
+  // Fixed Theory Modal without infinite loop
   const TheoryModal: React.FC<{ challenge: Challenge }> = React.memo(({ challenge }) => {
-    const { challengeTracking, markTheoryViewed } = useRobotStore();
+    // Use a ref to track if theory has been marked as viewed for this modal instance
+    const [hasMarkedViewed, setHasMarkedViewed] = useState(false);
     
     useEffect(() => {
-      // Theory mapping for challenges
-      const theoryMap: Record<string, string> = {
-        'intro-1': 'movement_basics',
-        'intro-2': 'sensor_basics',
-        'warehouse-1': 'path_planning'
-      };
-      
-      const theoryId = theoryMap[challenge.id];
-      
-      // Only mark theory as viewed if it hasn't been viewed yet
-      if (theoryId && !challengeTracking.viewedTheory.has(theoryId)) {
-        markTheoryViewed(theoryId);
+      // Only mark theory as viewed once per modal opening
+      if (!hasMarkedViewed) {
+        const theoryMap: Record<string, string> = {
+          'intro-1': 'movement_basics',
+          'intro-2': 'sensor_basics',
+          'warehouse-1': 'path_planning'
+        };
+        
+        const theoryId = theoryMap[challenge.id];
+        if (theoryId) {
+          markTheoryViewed(theoryId);
+          setHasMarkedViewed(true);
+        }
       }
-    }, [challenge.id, challengeTracking.viewedTheory, markTheoryViewed]);
+    }, [challenge.id, hasMarkedViewed]);
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
