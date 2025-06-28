@@ -98,24 +98,10 @@ interface RobotStoreState {
   readSensor: (sensorType: string) => Promise<number>;
   getSensorData: (sensorType: string) => Promise<any>;
   checkChallengeCompletion: (challengeId: string) => void;
-  // Enhanced simulator methods
   simulateMovement: (direction: string, speed: number, duration: number) => Promise<void>;
   simulateRotation: (direction: string, angle: number) => Promise<void>;
-  // New debug and utility methods
   triggerObjectiveCheck: () => void;
   getTrackingDebugInfo: () => any;
-  // Arm control methods
-  moveArmJoint: (joint: 'base' | 'shoulder' | 'elbow' | 'wrist', direction: 'positive' | 'negative') => void;
-  rotateBase: (direction: 'left' | 'right') => void;
-  moveShoulder: (direction: 'up' | 'down') => void;
-  moveElbow: (direction: 'extend' | 'retract') => void;
-  moveWrist: (direction: 'up' | 'down' | 'left' | 'right') => void;
-  openGripper: () => void;
-  closeGripper: () => void;
-  moveToHomePosition: () => void;
-  moveToPickPosition: () => void;
-  moveToPlacePosition: () => void;
-  getArmStatus: () => any;
 }
 
 const INITIAL_ROBOT_STATE = {
@@ -158,8 +144,8 @@ const INITIAL_CHALLENGE_TRACKING: ChallengeTracking = {
 const CHALLENGE_OBJECTIVES = {
   'intro-1': [
     { id: 'obj1', criteriaType: 'theory', criteriaValue: 'movement_basics' },
-    { id: 'obj2', criteriaType: 'distance_forward', criteriaValue: 5 }, // 5 meters as specified
-    { id: 'obj3', criteriaType: 'rotation_angle', criteriaValue: Math.PI/2 } // 90 degrees
+    { id: 'obj2', criteriaType: 'distance_forward', criteriaValue: 5 },
+    { id: 'obj3', criteriaType: 'rotation_angle', criteriaValue: Math.PI/2 }
   ],
   'intro-2': [
     { id: 'obj4', criteriaType: 'theory', criteriaValue: 'sensor_basics' },
@@ -240,46 +226,36 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
     });
   },
 
-  // Enhanced movement that combines visual movement with challenge tracking
   simulateMovement: async (direction: string, speed: number, duration: number) => {
     console.log(`🤖 Starting simulated movement: ${direction} at speed ${speed} for ${duration}ms`);
     
-    // Get initial position to calculate actual distance moved
     const initialState = get();
     const initialPosition = initialState.robotState?.position || { x: 0, y: 0, z: 0 };
     
-    // Start visual movement using the existing moveRobot method
     get().moveRobot({ 
       direction: direction as any, 
       speed: speed 
     });
 
-    // Wait for the specified duration
     await new Promise(resolve => setTimeout(resolve, duration));
     
-    // Stop the visual movement
     get().stopRobot();
 
-    // Get final position to calculate actual distance moved
     const finalState = get();
     const finalPosition = finalState.robotState?.position || { x: 0, y: 0, z: 0 };
     
-    // Calculate actual distance moved
     const actualDistance = Math.sqrt(
       Math.pow(finalPosition.x - initialPosition.x, 2) + 
       Math.pow(finalPosition.z - initialPosition.z, 2)
     );
 
-    // Update challenge tracking with the actual movement
     set((state) => {
       const newTracking = { ...state.challengeTracking };
       
-      // Track movement type and update specific tracking
       switch (direction) {
         case 'forward':
           newTracking.hasMovedForward = true;
           newTracking.totalDistanceMoved += actualDistance;
-          // For forward movement, track the Z-axis distance specifically
           const forwardDistance = finalPosition.z - initialPosition.z;
           if (forwardDistance > 0) {
             newTracking.maxForwardDistance = Math.max(
@@ -287,7 +263,7 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
               finalPosition.z
             );
           }
-          console.log(`📈 Forward distance: ${newTracking.maxForwardDistance.toFixed(3)}m (moved ${forwardDistance.toFixed(3)}m this step)`);
+          console.log(`📈 Forward distance updated: ${newTracking.maxForwardDistance.toFixed(3)}m`);
           break;
         case 'backward':
           newTracking.hasMovedBackward = true;
@@ -303,75 +279,58 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
           break;
       }
       
-      console.log(`📊 Total distance moved: ${newTracking.totalDistanceMoved.toFixed(3)}m`);
-      console.log(`🎯 Current forward progress: ${newTracking.maxForwardDistance.toFixed(3)}m / 5.0m required`);
-      
       return { challengeTracking: newTracking };
     });
 
-    // Check objectives after movement
     setTimeout(() => get().checkAndCompleteObjectives(), 200);
     
     console.log(`✅ Movement simulation complete`);
   },
 
-  // Enhanced rotation that combines visual rotation with challenge tracking  
   simulateRotation: async (direction: string, angle: number) => {
     console.log(`🔄 Starting simulated rotation: ${direction} by ${angle}°`);
     
-    // Get initial rotation to calculate actual rotation
     const initialState = get();
     const initialRotation = initialState.robotState?.rotation.y || 0;
     
-    // Start visual rotation using the existing rotateRobot method
     get().rotateRobot({ 
       direction: direction as any, 
       speed: 0.5 
     });
 
-    // Calculate rotation duration based on angle (roughly 1 second per 90 degrees)
     const rotationDuration = (angle / 90) * 1000;
     
     console.log(`⏱️ Rotation duration: ${rotationDuration}ms`);
 
-    // Wait for the rotation to complete
     await new Promise(resolve => setTimeout(resolve, rotationDuration));
     
-    // Stop the visual rotation
     get().stopRobot();
 
-    // Get final rotation to calculate actual rotation
     const finalState = get();
     const finalRotation = finalState.robotState?.rotation.y || 0;
     
-    // Calculate actual rotation amount (handle wrap-around)
     let actualRotation = Math.abs(finalRotation - initialRotation);
     if (actualRotation > Math.PI) {
       actualRotation = 2 * Math.PI - actualRotation;
     }
 
-    // Update challenge tracking with the actual rotation
     set((state) => {
       const newTracking = { ...state.challengeTracking };
       
-      // Track rotation type
       if (direction === 'left') {
         newTracking.hasRotatedLeft = true;
       } else {
         newTracking.hasRotatedRight = true;
       }
       
-      // Add to total rotation
       newTracking.totalRotations += actualRotation;
       newTracking.totalRotationAngle += actualRotation;
       
-      console.log(`🧭 Total rotation: ${(newTracking.totalRotationAngle * 180 / Math.PI).toFixed(1)}° (moved ${(actualRotation * 180 / Math.PI).toFixed(1)}° this step)`);
-      console.log(`🎯 Current rotation progress: ${(newTracking.totalRotationAngle * 180 / Math.PI).toFixed(1)}° / 90.0° required`);
+      console.log(`🧭 Total rotation: ${(newTracking.totalRotationAngle * 180 / Math.PI).toFixed(1)}°`);
       
       return { challengeTracking: newTracking };
     });
 
-    // Check objectives after rotation
     setTimeout(() => get().checkAndCompleteObjectives(), 200);
     
     console.log(`✅ Rotation simulation complete`);
@@ -381,7 +340,6 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
     const state = get();
     if (!state.robotState) return;
 
-    // Clear any existing intervals
     if ((window as any).robotMoveInterval) {
       clearInterval((window as any).robotMoveInterval);
     }
@@ -391,7 +349,6 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
       moveCommands: { direction, speed, joint }
     });
 
-    // Track the movement direction for challenge completion
     set((state) => {
       const newTracking = { ...state.challengeTracking };
       switch (direction) {
@@ -416,7 +373,6 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
       return { challengeTracking: newTracking };
     });
 
-    // Handle drone altitude changes
     if (state.selectedRobot?.type === 'drone' && joint === 'altitude') {
       const step = direction === 'up' ? 0.05 : -0.05;
       set((state) => ({
@@ -428,7 +384,6 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
       return;
     }
 
-    // Handle movement for explorer bot (sphere robot)
     if (state.selectedRobot?.type === 'explorer') {
       const moveStep = 0.12 * speed;
       const angle = state.robotState.rotation.y;
@@ -496,7 +451,6 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
       return;
     }
 
-    // Handle movement for other robot types
     const moveStep = 0.1 * speed;
     const angle = state.robotState.rotation.y;
     const deltaX = Math.sin(angle) * moveStep;
@@ -625,132 +579,10 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
     }));
   },
 
-  // Enhanced arm control methods
-  moveArmJoint: (joint: 'base' | 'shoulder' | 'elbow' | 'wrist', direction: 'positive' | 'negative') => {
-    const state = get();
-    if (!state.robotState || state.selectedRobot?.type !== 'arm') return;
-
-    console.log(`🦾 Moving arm joint: ${joint} ${direction}`);
-
-    // Map joint names to movement commands that the arm component will understand
-    let moveDirection: 'forward' | 'backward' | 'left' | 'right';
-    
-    switch (joint) {
-      case 'base':
-        moveDirection = direction === 'positive' ? 'right' : 'left';
-        break;
-      case 'shoulder':
-        moveDirection = direction === 'positive' ? 'forward' : 'backward';
-        break;
-      case 'elbow':
-        moveDirection = direction === 'positive' ? 'forward' : 'backward';
-        break;
-      case 'wrist':
-        moveDirection = direction === 'positive' ? 'forward' : 'backward';
-        break;
-    }
-
-    set({
-      isMoving: true,
-      moveCommands: { 
-        direction: moveDirection, 
-        speed: 0.5, 
-        joint: joint 
-      }
-    });
-
-    // Auto-stop after a short duration
-    setTimeout(() => {
-      get().stopRobot();
-    }, 200);
-  },
-
-  // Simplified arm control methods for easier use
-  rotateBase: (direction: 'left' | 'right') => {
-    get().moveArmJoint('base', direction === 'right' ? 'positive' : 'negative');
-  },
-
-  moveShoulder: (direction: 'up' | 'down') => {
-    get().moveArmJoint('shoulder', direction === 'up' ? 'positive' : 'negative');
-  },
-
-  moveElbow: (direction: 'extend' | 'retract') => {
-    get().moveArmJoint('elbow', direction === 'extend' ? 'positive' : 'negative');
-  },
-
-  moveWrist: (direction: 'up' | 'down' | 'left' | 'right') => {
-    const state = get();
-    if (!state.robotState || state.selectedRobot?.type !== 'arm') return;
-
-    console.log(`🤲 Moving wrist: ${direction}`);
-
-    set({
-      isMoving: true,
-      moveCommands: { 
-        direction: direction as any, 
-        speed: 0.5, 
-        joint: 'wrist' 
-      }
-    });
-
-    setTimeout(() => {
-      get().stopRobot();
-    }, 200);
-  },
-
-  // Enhanced gripper control
-  openGripper: () => {
-    const state = get();
-    if (!state.robotState || state.selectedRobot?.type !== 'arm') return;
-
-    console.log('👐 Opening gripper');
-
-    set({
-      isMoving: true,
-      moveCommands: { 
-        direction: 'forward', 
-        speed: 0.5 
-      }
-    });
-
-    setTimeout(() => {
-      get().stopRobot();
-    }, 300);
-  },
-
-  closeGripper: () => {
-    const state = get();
-    if (!state.robotState || state.selectedRobot?.type !== 'arm') return;
-
-    console.log('🤏 Closing gripper');
-
-    set({
-      isMoving: true,
-      moveCommands: { 
-        direction: 'backward', 
-        speed: 0.5 
-      }
-    });
-
-    setTimeout(() => {
-      get().stopRobot();
-    }, 300);
-  },
-
   grabObject: () => {
-    const state = get();
-    if (!state.robotState) return;
-
-    if (state.selectedRobot?.type === 'arm') {
-      // For arms, grabbing means closing the gripper
-      get().closeGripper();
-    }
-
     set((state) => {
       const newTracking = { ...state.challengeTracking };
       newTracking.hasGrabbed = true;
-
-      console.log('🤏 Object grabbed!');
 
       return {
         robotState: state.robotState ? {
@@ -765,19 +597,9 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
   },
 
   releaseObject: () => {
-    const state = get();
-    if (!state.robotState) return;
-
-    if (state.selectedRobot?.type === 'arm') {
-      // For arms, releasing means opening the gripper
-      get().openGripper();
-    }
-
     set((state) => {
       const newTracking = { ...state.challengeTracking };
       newTracking.hasReleased = true;
-
-      console.log('👐 Object released!');
 
       return {
         robotState: state.robotState ? {
@@ -789,58 +611,6 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
     });
     
     setTimeout(() => get().checkAndCompleteObjectives(), 100);
-  },
-
-  // Preset arm positions for convenience
-  moveToHomePosition: () => {
-    const state = get();
-    if (!state.robotState || state.selectedRobot?.type !== 'arm') return;
-
-    console.log('🏠 Moving arm to home position');
-    
-    // This would set all joints to their home positions
-    // You can customize these values based on your needs
-    setTimeout(() => get().rotateBase('left'), 100);
-    setTimeout(() => get().moveShoulder('down'), 200);
-    setTimeout(() => get().moveElbow('retract'), 300);
-  },
-
-  moveToPickPosition: () => {
-    const state = get();
-    if (!state.robotState || state.selectedRobot?.type !== 'arm') return;
-
-    console.log('📦 Moving arm to pick position');
-    
-    // Sequence of movements to get into a good picking position
-    setTimeout(() => get().moveShoulder('up'), 100);
-    setTimeout(() => get().moveElbow('extend'), 200);
-    setTimeout(() => get().openGripper(), 300);
-  },
-
-  moveToPlacePosition: () => {
-    const state = get();
-    if (!state.robotState || state.selectedRobot?.type !== 'arm') return;
-
-    console.log('📋 Moving arm to place position');
-    
-    // Sequence of movements for placing objects
-    setTimeout(() => get().moveShoulder('down'), 100);
-    setTimeout(() => get().moveElbow('retract'), 200);
-  },
-
-  // Debug method to get current arm joint positions
-  getArmStatus: () => {
-    const state = get();
-    if (!state.robotState || state.selectedRobot?.type !== 'arm') return null;
-
-    return {
-      base: state.jointPositions.base,
-      shoulder: state.jointPositions.shoulder,
-      elbow: state.jointPositions.elbow,
-      wrist: state.jointPositions.wrist,
-      isGrabbing: state.robotState.isGrabbing,
-      isMoving: state.isMoving
-    };
   },
 
   readSensor: async (sensorType: string): Promise<number> => {
@@ -855,34 +625,54 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
       }
     }));
 
-    console.log(`📡 Reading ${sensorType} sensor...`);
-
-    let reading = 0;
     switch (sensorType) {
       case 'ultrasonic':
-        reading = Math.random() * 3.9 + 0.1;
-        break;
+        const distance = Math.random() * 3.9 + 0.1;
+        get().markObjectiveCompleted('obj5');
+        return distance;
       case 'camera':
-        reading = Math.random();
-        break;
+        return Math.random();
       default:
-        reading = 0;
+        return 0;
     }
-
-    console.log(`📊 Sensor reading: ${reading.toFixed(2)}`);
-    
-    // Check objectives after sensor read
-    setTimeout(() => get().checkAndCompleteObjectives(), 100);
-    
-    return reading;
   },
 
   getSensorData: async (sensorType: string): Promise<any> => {
-    const reading = await get().readSensor(sensorType);
-    return {
-      [sensorType]: reading,
-      timestamp: Date.now()
-    };
+    const state = get();
+    if (!state.robotState) return null;
+
+    set((state) => ({
+      challengeTracking: {
+        ...state.challengeTracking,
+        hasReadSensor: true,
+        sensorReadings: state.challengeTracking.sensorReadings + 1,
+      }
+    }));
+
+    get().markObjectiveCompleted('obj5');
+
+    switch (sensorType) {
+      case 'ultrasonic':
+        return {
+          distance: Math.random() * 3.9 + 0.1,
+          unit: 'meters',
+          timestamp: Date.now()
+        };
+      case 'camera':
+        return {
+          objects: ['red_ball', 'blue_cube'],
+          brightness: Math.floor(Math.random() * 100),
+          timestamp: Date.now()
+        };
+      case 'light':
+        return {
+          level: Math.floor(Math.random() * 100),
+          unit: 'lux',
+          timestamp: Date.now()
+        };
+      default:
+        return { error: 'Unknown sensor type' };
+    }
   },
 
   setEnvironment: (config) => set({ environment: config }),
@@ -1024,7 +814,6 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
     }));
   },
 
-  // FIXED: Updated checkAndCompleteObjectives with improved tracking logic
   checkAndCompleteObjectives: () => {
     const state = get();
     if (!state.challengeTracking.currentChallengeId || !state.robotState) return;
@@ -1033,7 +822,6 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
     const { challengeTracking } = state;
     const challengeId = challengeTracking.currentChallengeId;
 
-    // Get objectives for current challenge
     const objectives = CHALLENGE_OBJECTIVES[challengeId as keyof typeof CHALLENGE_OBJECTIVES];
     if (!objectives) return;
 
@@ -1046,7 +834,6 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
 
       switch (objective.criteriaType) {
         case 'distance_forward':
-          // Fix: Check maxForwardDistance instead of totalDistanceMoved
           shouldComplete = challengeTracking.maxForwardDistance >= objective.criteriaValue;
           if (shouldComplete) {
             console.log(`✅ Distance objective completed! Moved ${challengeTracking.maxForwardDistance.toFixed(2)}m forward (required: ${objective.criteriaValue}m)`);
@@ -1056,7 +843,6 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
           break;
         
         case 'rotation_angle':
-          // Fix: Convert degrees to radians for comparison
           const requiredRadians = typeof objective.criteriaValue === 'number' ? objective.criteriaValue : (objective.criteriaValue * Math.PI / 180);
           shouldComplete = challengeTracking.totalRotationAngle >= requiredRadians;
           if (shouldComplete) {
@@ -1112,7 +898,6 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
       }
     });
 
-    // Check if challenge should be completed
     if (newCompletions) {
       get().checkChallengeCompletion(challengeId);
     }
@@ -1131,7 +916,6 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
       console.log(`🏆 Challenge completed: ${challengeId}`);
       get().markChallengeCompleted(challengeId);
       
-      // Dispatch challenge completion event
       window.dispatchEvent(new CustomEvent('challengeCompleted', { 
         detail: { challengeId } 
       }));
@@ -1160,7 +944,6 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
         newTracking.viewedTheory.add(theoryId);
         console.log(`📚 Theory viewed: ${theoryId}`);
         
-        // Check if this completes a theory-based objective
         setTimeout(() => get().checkAndCompleteObjectives(), 100);
       }
       return { challengeTracking: newTracking };
@@ -1192,7 +975,6 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
     return state.challengeTracking.completedChallenges.has(challengeId);
   },
 
-  // NEW: Helper method to manually trigger objective checks
   triggerObjectiveCheck: () => {
     const state = get();
     if (state.challengeTracking.currentChallengeId) {
@@ -1201,7 +983,6 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
     }
   },
 
-  // NEW: Debug method to get current tracking values
   getTrackingDebugInfo: () => {
     const state = get();
     return {
