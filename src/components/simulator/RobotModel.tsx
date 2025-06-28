@@ -9,6 +9,16 @@ interface RobotModelProps {
   robotConfig: RobotConfig;
 }
 
+// Define joint limits for robotic arm
+const ARM_JOINT_LIMITS = {
+  base: { min: -Math.PI, max: Math.PI },
+  shoulder: { min: -Math.PI / 2, max: Math.PI / 2 },
+  elbow: { min: -Math.PI * 0.75, max: Math.PI * 0.75 },
+  wristPitch: { min: -Math.PI / 2, max: Math.PI / 2 },
+  wristRoll: { min: -Math.PI, max: Math.PI },
+  gripper: { min: 0, max: 0.04 }
+};
+
 const RobotModel: React.FC<RobotModelProps> = ({ robotConfig }) => {
   const modelRef = useRef<THREE.Group>(null);
   const prevPositionRef = useRef(new THREE.Vector3(0, 0, 0));
@@ -26,6 +36,29 @@ const RobotModel: React.FC<RobotModelProps> = ({ robotConfig }) => {
   const propellersRef = useRef<THREE.Group[]>([]);
   const droneAltitude = useRef(0);
 
+  // Robotic arm specific refs
+  const armBaseRef = useRef<THREE.Group>(null);
+  const armShoulderRef = useRef<THREE.Group>(null);
+  const armElbowRef = useRef<THREE.Group>(null);
+  const armWristPitchRef = useRef<THREE.Group>(null);
+  const armWristRollRef = useRef<THREE.Group>(null);
+  const armGripperLeftRef = useRef<THREE.Mesh>(null);
+  const armGripperRightRef = useRef<THREE.Mesh>(null);
+
+  // Arm joint angles state
+  const [armJointAngles, setArmJointAngles] = useState({
+    base: 0,
+    shoulder: 0,
+    elbow: Math.PI / 4,
+    wristPitch: 0,
+    wristRoll: 0,
+    gripper: 0.02
+  });
+
+  // Target angles for smooth interpolation
+  const armTargetAnglesRef = useRef({ ...armJointAngles });
+  const armCurrentAnglesRef = useRef({ ...armJointAngles });
+
   const { robotState, isMoving: storeIsMoving, moveCommands } = useRobotStore();
   const [isMoving, setIsMoving] = useState(false);
   const [currentAction, setCurrentAction] = useState<string | null>(null);
@@ -39,13 +72,15 @@ const RobotModel: React.FC<RobotModelProps> = ({ robotConfig }) => {
   const isTank = robotConfig.type === 'tank';
   const isExplorer = robotConfig.type === 'explorer' || robotConfig.type === 'mobile';
   const isDrone = robotConfig.type === 'drone';
+  const isArm = robotConfig.type === 'arm';
 
   console.log('🔍 Robot type debug:', {
     robotConfigType: robotConfig.type,
     isExplorer,
     isSpider,
     isTank,
-    isDrone
+    isDrone,
+    isArm
   });
 
   // Physics constants for drone
@@ -57,6 +92,238 @@ const RobotModel: React.FC<RobotModelProps> = ({ robotConfig }) => {
     droneLiftAcceleration: 0.03,
     droneMaxAltitude: 4.0,
     droneMinAltitude: 0.15
+  };
+
+  // Movement speeds for arm
+  const ARM_MOVEMENT_SPEED = 0.02;
+  const ARM_GRIPPER_SPEED = 0.0005;
+
+  // Handle arm move commands
+  useEffect(() => {
+    if (!isArm || !moveCommands) return;
+
+    const { joint, direction } = moveCommands;
+    const delta = direction === 'positive' || direction === 'open' ? 1 : -1;
+    
+    const newTarget = { ...armTargetAnglesRef.current };
+    
+    switch (joint) {
+      case 'base':
+        newTarget.base = THREE.MathUtils.clamp(
+          newTarget.base + delta * ARM_MOVEMENT_SPEED,
+          ARM_JOINT_LIMITS.base.min,
+          ARM_JOINT_LIMITS.base.max
+        );
+        break;
+      case 'shoulder':
+        newTarget.shoulder = THREE.MathUtils.clamp(
+          newTarget.shoulder + delta * ARM_MOVEMENT_SPEED,
+          ARM_JOINT_LIMITS.shoulder.min,
+          ARM_JOINT_LIMITS.shoulder.max
+        );
+        break;
+      case 'elbow':
+        newTarget.elbow = THREE.MathUtils.clamp(
+          newTarget.elbow + delta * ARM_MOVEMENT_SPEED,
+          ARM_JOINT_LIMITS.elbow.min,
+          ARM_JOINT_LIMITS.elbow.max
+        );
+        break;
+      case 'wrist':
+        newTarget.wristPitch = THREE.MathUtils.clamp(
+          newTarget.wristPitch + delta * ARM_MOVEMENT_SPEED,
+          ARM_JOINT_LIMITS.wristPitch.min,
+          ARM_JOINT_LIMITS.wristPitch.max
+        );
+        break;
+      case 'wristRoll':
+        newTarget.wristRoll = THREE.MathUtils.clamp(
+          newTarget.wristRoll + delta * ARM_MOVEMENT_SPEED,
+          ARM_JOINT_LIMITS.wristRoll.min,
+          ARM_JOINT_LIMITS.wristRoll.max
+        );
+        break;
+      case 'gripper':
+        newTarget.gripper = THREE.MathUtils.clamp(
+          newTarget.gripper + delta * ARM_GRIPPER_SPEED,
+          ARM_JOINT_LIMITS.gripper.min,
+          ARM_JOINT_LIMITS.gripper.max
+        );
+        break;
+    }
+    
+    armTargetAnglesRef.current = newTarget;
+  }, [moveCommands, isArm]);
+
+  // Robotic Arm Geometry Component
+  const RoboticArmGeometry = () => {
+    // Material definitions
+    const baseMaterial = <meshStandardMaterial color="#2d3436" metalness={0.8} roughness={0.2} />;
+    const jointMaterial = <meshStandardMaterial color="#636e72" metalness={0.9} roughness={0.1} />;
+    const armMaterial = <meshStandardMaterial color="#b2bec3" metalness={0.7} roughness={0.3} />;
+    const gripperMaterial = <meshStandardMaterial color="#fdcb6e" metalness={0.6} roughness={0.4} />;
+    const accentMaterial = <meshStandardMaterial color="#e17055" metalness={0.8} roughness={0.2} emissive="#e17055" emissiveIntensity={0.1} />;
+
+    return (
+      <>
+        {/* Base Platform */}
+        <mesh castShadow receiveShadow>
+          <cylinderGeometry args={[0.15, 0.18, 0.05, 32]} />
+          {baseMaterial}
+        </mesh>
+        
+        {/* Base Joint Housing */}
+        <mesh castShadow receiveShadow position={[0, 0.05, 0]}>
+          <cylinderGeometry args={[0.12, 0.12, 0.08, 32]} />
+          {jointMaterial}
+        </mesh>
+
+        {/* Rotating Base */}
+        <group ref={armBaseRef} position={[0, 0.09, 0]}>
+          {/* Base Connector */}
+          <mesh castShadow receiveShadow>
+            <boxGeometry args={[0.08, 0.06, 0.08]} />
+            {armMaterial}
+          </mesh>
+
+          {/* Shoulder Joint */}
+          <group ref={armShoulderRef} position={[0, 0.03, 0]}>
+            {/* Shoulder Motor Housing */}
+            <mesh castShadow receiveShadow rotation={[0, 0, Math.PI / 2]}>
+              <cylinderGeometry args={[0.05, 0.05, 0.1, 32]} />
+              {jointMaterial}
+            </mesh>
+            
+            {/* Upper Arm */}
+            <mesh castShadow receiveShadow position={[0, 0.15, 0]}>
+              <boxGeometry args={[0.06, 0.3, 0.06]} />
+              {armMaterial}
+            </mesh>
+            
+            {/* Upper Arm Accent Stripes */}
+            <mesh castShadow position={[0, 0.1, 0.031]}>
+              <boxGeometry args={[0.04, 0.02, 0.001]} />
+              {accentMaterial}
+            </mesh>
+            <mesh castShadow position={[0, 0.2, 0.031]}>
+              <boxGeometry args={[0.04, 0.02, 0.001]} />
+              {accentMaterial}
+            </mesh>
+
+            {/* Elbow Joint */}
+            <group ref={armElbowRef} position={[0, 0.3, 0]}>
+              {/* Elbow Motor */}
+              <mesh castShadow receiveShadow rotation={[0, 0, Math.PI / 2]}>
+                <cylinderGeometry args={[0.04, 0.04, 0.08, 32]} />
+                {jointMaterial}
+              </mesh>
+              
+              {/* Forearm */}
+              <mesh castShadow receiveShadow position={[0, 0.125, 0]}>
+                <boxGeometry args={[0.05, 0.25, 0.05]} />
+                {armMaterial}
+              </mesh>
+              
+              {/* Forearm Details */}
+              <mesh castShadow position={[0, 0.08, 0.026]}>
+                <boxGeometry args={[0.03, 0.015, 0.001]} />
+                {accentMaterial}
+              </mesh>
+              <mesh castShadow position={[0, 0.17, 0.026]}>
+                <boxGeometry args={[0.03, 0.015, 0.001]} />
+                {accentMaterial}
+              </mesh>
+
+              {/* Wrist Assembly */}
+              <group position={[0, 0.25, 0]}>
+                {/* Wrist Pitch Joint */}
+                <group ref={armWristPitchRef}>
+                  <mesh castShadow receiveShadow rotation={[0, 0, Math.PI / 2]}>
+                    <cylinderGeometry args={[0.03, 0.03, 0.06, 32]} />
+                    {jointMaterial}
+                  </mesh>
+                  
+                  {/* Wrist Roll Joint */}
+                  <group ref={armWristRollRef} position={[0, 0.05, 0]}>
+                    <mesh castShadow receiveShadow>
+                      <cylinderGeometry args={[0.025, 0.025, 0.04, 32]} />
+                      {jointMaterial}
+                    </mesh>
+                    
+                    {/* End Effector Mount */}
+                    <mesh castShadow receiveShadow position={[0, 0.03, 0]}>
+                      <boxGeometry args={[0.06, 0.02, 0.04]} />
+                      {armMaterial}
+                    </mesh>
+
+                    {/* Gripper Assembly */}
+                    <group position={[0, 0.05, 0]}>
+                      {/* Gripper Base */}
+                      <mesh castShadow receiveShadow>
+                        <boxGeometry args={[0.05, 0.02, 0.03]} />
+                        {gripperMaterial}
+                      </mesh>
+                      
+                      {/* Left Gripper Finger */}
+                      <group ref={armGripperLeftRef} position={[-0.02, 0.02, 0]}>
+                        <mesh castShadow receiveShadow>
+                          <boxGeometry args={[0.015, 0.04, 0.02]} />
+                          {gripperMaterial}
+                        </mesh>
+                        {/* Gripper Pad */}
+                        <mesh castShadow position={[0.008, 0.015, 0]}>
+                          <boxGeometry args={[0.002, 0.025, 0.015]} />
+                          <meshStandardMaterial color="#2d3436" roughness={0.8} />
+                        </mesh>
+                      </group>
+                      
+                      {/* Right Gripper Finger */}
+                      <group ref={armGripperRightRef} position={[0.02, 0.02, 0]}>
+                        <mesh castShadow receiveShadow>
+                          <boxGeometry args={[0.015, 0.04, 0.02]} />
+                          {gripperMaterial}
+                        </mesh>
+                        {/* Gripper Pad */}
+                        <mesh castShadow position={[-0.008, 0.015, 0]}>
+                          <boxGeometry args={[0.002, 0.025, 0.015]} />
+                          <meshStandardMaterial color="#2d3436" roughness={0.8} />
+                        </mesh>
+                      </group>
+                    </group>
+
+                    {/* Tool Center Point Light */}
+                    <pointLight
+                      color="#ffffff"
+                      intensity={0.5}
+                      distance={0.3}
+                      position={[0, 0.08, 0]}
+                    />
+                  </group>
+                </group>
+              </group>
+            </group>
+          </group>
+        </group>
+
+        {/* Status LEDs */}
+        <mesh castShadow position={[0.1, 0.02, 0]}>
+          <sphereGeometry args={[0.005, 16, 16]} />
+          <meshStandardMaterial 
+            color="#00ff00" 
+            emissive="#00ff00" 
+            emissiveIntensity={robotState?.isMoving ? 0.5 : 0.2} 
+          />
+        </mesh>
+        <mesh castShadow position={[0.12, 0.02, 0]}>
+          <sphereGeometry args={[0.005, 16, 16]} />
+          <meshStandardMaterial 
+            color="#3b82f6" 
+            emissive="#3b82f6" 
+            emissiveIntensity={0.3} 
+          />
+        </mesh>
+      </>
+    );
   };
 
   // Enhanced Drone with realistic aerodynamics
@@ -249,10 +516,10 @@ const RobotModel: React.FC<RobotModelProps> = ({ robotConfig }) => {
     ? tankGLTF 
     : humanoidGLTF;
 
-  const { scene, animations } = isDrone ? { scene: null, animations: [] } : activeGLTF;
+  const { scene, animations } = (isDrone || isArm) ? { scene: null, animations: [] } : activeGLTF;
 
   const processedScene = React.useMemo(() => {
-    if (isDrone) return null;
+    if (isDrone || isArm) return null;
     
     const clonedScene = scene.clone();
     
@@ -303,7 +570,7 @@ const RobotModel: React.FC<RobotModelProps> = ({ robotConfig }) => {
     }
     
     return (isSpider || isTank || isExplorer) ? clonedScene : scene;
-  }, [scene, isSpider, isTank, isExplorer, isDrone]);
+  }, [scene, isSpider, isTank, isExplorer, isDrone, isArm]);
 
   const { actions, mixer } = useAnimations(animations, processedScene);
 
@@ -312,6 +579,11 @@ const RobotModel: React.FC<RobotModelProps> = ({ robotConfig }) => {
       console.log('🚁 Drone model loaded (procedural geometry)');
       // Initialize drone altitude
       droneAltitude.current = robotState?.position.y || 0.5;
+      return;
+    }
+
+    if (isArm) {
+      console.log('🦾 Robotic arm model loaded (procedural geometry)');
       return;
     }
 
@@ -335,10 +607,10 @@ const RobotModel: React.FC<RobotModelProps> = ({ robotConfig }) => {
         }
       });
     }
-  }, [animations, actions, isSpider, isTank, isExplorer, processedScene, isDrone]);
+  }, [animations, actions, isSpider, isTank, isExplorer, processedScene, isDrone, isArm]);
 
   const animToPlay = React.useMemo(() => {
-    if (isDrone || !actions || Object.keys(actions).length === 0) {
+    if (isDrone || isArm || !actions || Object.keys(actions).length === 0) {
       return null;
     }
 
@@ -386,7 +658,7 @@ const RobotModel: React.FC<RobotModelProps> = ({ robotConfig }) => {
     if (allKeys.includes('mixamo.com')) return 'mixamo.com';
     if (allKeys.length > 0) return allKeys[0];
     return null;
-  }, [actions, isSpider, isTank, isExplorer, isDrone]);
+  }, [actions, isSpider, isTank, isExplorer, isDrone, isArm]);
 
   useEffect(() => {
     if (!robotState) return;
@@ -443,7 +715,7 @@ const RobotModel: React.FC<RobotModelProps> = ({ robotConfig }) => {
   };
 
   useEffect(() => {
-    if (isDrone || !actions || !animToPlay) return;
+    if (isDrone || isArm || !actions || !animToPlay) return;
 
     if (isMoving) {
       if (currentAction !== animToPlay) {
@@ -454,20 +726,20 @@ const RobotModel: React.FC<RobotModelProps> = ({ robotConfig }) => {
         stopAllActions();
       }
     }
-  }, [isMoving, actions, animToPlay, currentAction, isDrone]);
+  }, [isMoving, actions, animToPlay, currentAction, isDrone, isArm]);
 
   useEffect(() => {
     return () => {
-      if (!isDrone) {
+      if (!isDrone && !isArm) {
         stopAllActions();
       }
     };
-  }, [actions, isDrone]);
+  }, [actions, isDrone, isArm]);
 
   useFrame((state, delta) => {
     if (!robotState || !modelRef.current) return;
 
-    if (mixer && !isDrone) {
+    if (mixer && !isDrone && !isArm) {
       mixer.update(delta);
     }
 
@@ -483,6 +755,51 @@ const RobotModel: React.FC<RobotModelProps> = ({ robotConfig }) => {
     // Apply the explorer float height offset to the target position
     if (isExplorer) {
       targetPos.y += explorerFloatHeight;
+    }
+    
+    // Robotic arm specific animation
+    if (isArm) {
+      const current = armCurrentAnglesRef.current;
+      const target = armTargetAnglesRef.current;
+      const lerpSpeed = 5 * delta;
+
+      // Interpolate each joint
+      Object.keys(current).forEach(joint => {
+        current[joint] = THREE.MathUtils.lerp(current[joint], target[joint], lerpSpeed);
+      });
+
+      // Apply rotations
+      if (armBaseRef.current) {
+        armBaseRef.current.rotation.y = current.base;
+      }
+      if (armShoulderRef.current) {
+        armShoulderRef.current.rotation.x = current.shoulder;
+      }
+      if (armElbowRef.current) {
+        armElbowRef.current.rotation.x = current.elbow;
+      }
+      if (armWristPitchRef.current) {
+        armWristPitchRef.current.rotation.x = current.wristPitch;
+      }
+      if (armWristRollRef.current) {
+        armWristRollRef.current.rotation.z = current.wristRoll;
+      }
+      if (armGripperLeftRef.current && armGripperRightRef.current) {
+        armGripperLeftRef.current.position.x = -current.gripper;
+        armGripperRightRef.current.position.x = current.gripper;
+      }
+
+      // Apply position
+      modelRef.current.position.copy(targetPos);
+      
+      // Apply base rotation from robotState
+      const targetRot = robotState.rotation.y;
+      const currentRot = modelRef.current.rotation.y;
+      const rotDiff = targetRot - currentRot;
+      const normalizedDiff = ((rotDiff + Math.PI) % (Math.PI * 2)) - Math.PI;
+      modelRef.current.rotation.y += normalizedDiff * 0.1;
+      
+      return; // Exit early for arm
     }
     
     // Drone-specific movement and animation
@@ -593,8 +910,8 @@ const RobotModel: React.FC<RobotModelProps> = ({ robotConfig }) => {
       modelRef.current.position.copy(prevPositionRef.current);
     }
 
-    // Rotation handling for all models
-    if (!isDrone) {
+    // Rotation handling for all models except arm (handled above)
+    if (!isDrone && !isArm) {
       const targetRot = robotState.rotation.y;
       const currentRot = modelRef.current.rotation.y;
       const rotDiff = targetRot - currentRot;
@@ -616,7 +933,16 @@ const RobotModel: React.FC<RobotModelProps> = ({ robotConfig }) => {
   const explorerScale = Math.min(2.5, 5);
   const explorerFloatHeight = isExplorer ? 0.5 : 0;
 
-  // Render drone procedurally or GLTF models
+  // Render robotic arm procedurally
+  if (isArm) {
+    return (
+      <group ref={modelRef}>
+        <RoboticArmGeometry />
+      </group>
+    );
+  }
+
+  // Render drone procedurally
   if (isDrone) {
     return (
       <group ref={modelRef}>
@@ -625,6 +951,7 @@ const RobotModel: React.FC<RobotModelProps> = ({ robotConfig }) => {
     );
   }
 
+  // Render GLTF models
   return (
     <primitive
       ref={modelRef}
