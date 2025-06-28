@@ -101,6 +101,9 @@ interface RobotStoreState {
   // Enhanced simulator methods
   simulateMovement: (direction: string, speed: number, duration: number) => Promise<void>;
   simulateRotation: (direction: string, angle: number) => Promise<void>;
+  // New debug and utility methods
+  triggerObjectiveCheck: () => void;
+  getTrackingDebugInfo: () => any;
 }
 
 const INITIAL_ROBOT_STATE = {
@@ -853,6 +856,7 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
     }));
   },
 
+  // FIXED: Updated checkAndCompleteObjectives with improved tracking logic
   checkAndCompleteObjectives: () => {
     const state = get();
     if (!state.challengeTracking.currentChallengeId || !state.robotState) return;
@@ -874,16 +878,23 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
 
       switch (objective.criteriaType) {
         case 'distance_forward':
+          // Fix: Check maxForwardDistance instead of totalDistanceMoved
           shouldComplete = challengeTracking.maxForwardDistance >= objective.criteriaValue;
           if (shouldComplete) {
             console.log(`✅ Distance objective completed! Moved ${challengeTracking.maxForwardDistance.toFixed(2)}m forward (required: ${objective.criteriaValue}m)`);
+          } else {
+            console.log(`📊 Forward progress: ${challengeTracking.maxForwardDistance.toFixed(2)}m / ${objective.criteriaValue}m required`);
           }
           break;
         
         case 'rotation_angle':
-          shouldComplete = challengeTracking.totalRotationAngle >= objective.criteriaValue;
+          // Fix: Convert degrees to radians for comparison
+          const requiredRadians = typeof objective.criteriaValue === 'number' ? objective.criteriaValue : (objective.criteriaValue * Math.PI / 180);
+          shouldComplete = challengeTracking.totalRotationAngle >= requiredRadians;
           if (shouldComplete) {
-            console.log(`✅ Rotation objective completed! Rotated ${(challengeTracking.totalRotationAngle * 180 / Math.PI).toFixed(1)}° (required: ${(objective.criteriaValue * 180 / Math.PI).toFixed(1)}°)`);
+            console.log(`✅ Rotation objective completed! Rotated ${(challengeTracking.totalRotationAngle * 180 / Math.PI).toFixed(1)}° (required: ${(requiredRadians * 180 / Math.PI).toFixed(1)}°)`);
+          } else {
+            console.log(`📊 Rotation progress: ${(challengeTracking.totalRotationAngle * 180 / Math.PI).toFixed(1)}° / ${(requiredRadians * 180 / Math.PI).toFixed(1)}° required`);
           }
           break;
         
@@ -1011,5 +1022,27 @@ export const useRobotStore = create<RobotStoreState>((set, get) => ({
   getChallengeStatus: (challengeId) => {
     const state = get();
     return state.challengeTracking.completedChallenges.has(challengeId);
+  },
+
+  // NEW: Helper method to manually trigger objective checks
+  triggerObjectiveCheck: () => {
+    const state = get();
+    if (state.challengeTracking.currentChallengeId) {
+      console.log('🔍 Manually triggering objective check...');
+      get().checkAndCompleteObjectives();
+    }
+  },
+
+  // NEW: Debug method to get current tracking values
+  getTrackingDebugInfo: () => {
+    const state = get();
+    return {
+      currentChallenge: state.challengeTracking.currentChallengeId,
+      forwardDistance: state.challengeTracking.maxForwardDistance,
+      totalRotation: state.challengeTracking.totalRotationAngle * 180 / Math.PI,
+      completedObjectives: Array.from(state.challengeTracking.completedObjectives),
+      hasReadSensor: state.challengeTracking.hasReadSensor,
+      sensorReadings: state.challengeTracking.sensorReadings
+    };
   },
 }));
